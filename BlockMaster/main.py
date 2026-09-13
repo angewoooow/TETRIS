@@ -5,33 +5,37 @@ import random
 
 # ============================================================
 # BLOCKMASTER
-# PHASE 14
+# ARCADE UI VERSION
+# ============================================================
 #
-# Features:
-# - 8 x 16 board
-# - Start/Home screen
-# - Player name selection
-# - 3, 2, 1 countdown
-# - Arcade-style pastel UI
-# - 3D-looking blocks
+# BOARD:
+# 8 columns x 16 rows
+#
+# CONTROLS:
+# LEFT       = Move left
+# RIGHT      = Move right
+# UP         = Rotate
+# DOWN       = Rotate
+# SPACE      = Hard drop / lock
+#
+# FEATURES:
+# - Player name
+# - 3 second countdown
 # - Score
 # - High score
 # - Level
-# - Next shape preview
-# - Progressive speed
-# - 6+ filled cells can trigger clearing
-# - Combo blast
-# - Pause / Resume
-# - Reset
-# - Home
-# - Quit
-#
-# CONTROLS:
-# LEFT      = Move left
-# RIGHT     = Move right
-# UP        = Rotate
-# DOWN      = Rotate
-# SPACE     = Hard drop / Lock
+# - Next block preview
+# - 6+ filled cells can clear a row
+# - Combo system
+# - Blast clearing
+# - Session leaderboard
+# - Recent 10 scores
+# - Same-window menu
+# - Restart button
+# - Home screen
+# - Dark arcade theme
+# - 3D UI
+# - 3D blocks
 # ============================================================
 
 
@@ -41,7 +45,6 @@ import random
 
 ROWS = 16
 COLS = 8
-
 CELL_SIZE = 40
 
 BOARD_WIDTH = COLS * CELL_SIZE
@@ -49,54 +52,73 @@ BOARD_HEIGHT = ROWS * CELL_SIZE
 
 
 # ============================================================
-# SPEED SETTINGS
+# GAME SPEED
 # ============================================================
 
-# You said 1000 works well, so we start here.
-START_FALL_SPEED = 1000
+# Level 1 starts slower
+START_FALL_SPEED = 1500
 
-# Speed becomes faster by this amount each level.
-SPEED_STEP = 50
+# Every level gets faster
+SPEED_STEP = 75
 
-# The lowest possible delay.
-MIN_FALL_SPEED = 150
+# Never become impossibly fast
+MIN_FALL_SPEED = 300
 
 
 # ============================================================
-# LEVEL SETTINGS
+# LEVEL
 # ============================================================
 
 LEVEL_SCORE = 75
 
 
 # ============================================================
-# COLORS
+# DARK ARCADE COLORS
 # ============================================================
 
-BACKGROUND = "#F4F1EA"
-PANEL = "#E8E1D5"
-PANEL_LIGHT = "#F8F5EF"
+BG = "#111318"
+BG_DARK = "#0A0C10"
 
-TEXT = "#4E4A45"
+PANEL = "#1C2029"
+PANEL_DARK = "#151820"
+PANEL_LIGHT = "#252B36"
 
-BOARD_BG = "#DDD8CF"
-GRID_COLOR = "#C8C2B8"
+BORDER = "#454D5A"
 
-BUTTON_BG = "#D7C7E8"
-BUTTON_ACTIVE = "#C7B2DE"
+TEXT = "#E8EAF0"
+TEXT_DIM = "#9CA3AF"
 
-HOME_BG = "#EFE8DF"
+ACCENT = "#B9A7D9"
+ACCENT_DARK = "#75658F"
 
-# Pastel block colors
+BUTTON = "#292F3A"
+BUTTON_LIGHT = "#353C49"
+BUTTON_PRESS = "#454D5A"
+
+SUCCESS = "#A8D5BA"
+WARNING = "#E7C98A"
+
+# Game board
+BOARD_BG = "#181B22"
+GRID = "#2A303A"
+
+# Pastel-ish but darker arcade block colors
 BLOCK_COLORS = [
-    "#A8DADC",   # pastel cyan
-    "#F6BDCC",   # pastel pink
-    "#CDB4DB",   # pastel purple
-    "#BDE0FE",   # pastel blue
-    "#CDE8B5",   # pastel green
-    "#F8D6A0",   # pastel orange
-    "#D8C3A5"    # pastel brown
+    "#7BA7B8",
+    "#B68CA8",
+    "#8FA6C9",
+    "#8FB39A",
+    "#C7A77B",
+    "#A995C9",
+    "#B98585"
 ]
+
+
+# ============================================================
+# ARCADE FONT
+# ============================================================
+
+FONT = "Courier New"
 
 
 class BlockMaster:
@@ -105,41 +127,55 @@ class BlockMaster:
 
         self.root = root
 
-        self.root.title("BlockMaster")
+        self.root.title("BLOCKMASTER")
 
-        self.root.geometry("1000x850")
+        self.root.geometry("1080x850")
 
         self.root.resizable(False, False)
 
         self.root.configure(
-            bg=BACKGROUND
+            bg=BG
         )
 
         # ====================================================
-        # GAME VARIABLES
+        # PLAYER DATA
         # ====================================================
 
         self.player_name = ""
 
+        # ====================================================
+        # SCORE DATA
+        # ====================================================
+
         self.score = 0
-
         self.high_score = 0
-
         self.level = 1
-
         self.lines = 0
-
         self.combo = 0
+
+        # ====================================================
+        # GAME DATA
+        # ====================================================
 
         self.fall_speed = START_FALL_SPEED
 
         self.game_over = False
-
         self.paused = False
-
         self.countdown_active = False
 
-        self.countdown_value = 0
+        # ====================================================
+        # SESSION SCORE HISTORY
+        # ====================================================
+
+        # Every completed game is stored here.
+        #
+        # Example:
+        # [
+        #   {"name": "ANGELO", "score": 450},
+        #   {"name": "JUAN", "score": 300}
+        # ]
+        #
+        self.session_scores = []
 
         # ====================================================
         # SHAPES
@@ -192,8 +228,13 @@ class BlockMaster:
         ]
 
         # ====================================================
-        # BLOCK COLORS
+        # CURRENT / NEXT BLOCK
         # ====================================================
+
+        self.current_block = None
+        self.next_block = random.choice(
+            self.shapes
+        )
 
         self.current_color = random.choice(
             BLOCK_COLORS
@@ -201,16 +242,6 @@ class BlockMaster:
 
         self.next_color = random.choice(
             BLOCK_COLORS
-        )
-
-        # ====================================================
-        # CURRENT / NEXT BLOCK
-        # ====================================================
-
-        self.current_block = None
-
-        self.next_block = random.choice(
-            self.shapes
         )
 
         # ====================================================
@@ -222,10 +253,81 @@ class BlockMaster:
         self.board_colors = []
 
         # ====================================================
-        # CREATE HOME SCREEN
+        # HOME SCREEN
         # ====================================================
 
         self.create_home_screen()
+
+    # ========================================================
+    # UTILITY
+    # ========================================================
+
+    def clear_root(self):
+
+        for widget in self.root.winfo_children():
+
+            widget.destroy()
+
+    # ========================================================
+    # 3D FRAME
+    # ========================================================
+
+    def create_3d_frame(
+        self,
+        parent,
+        bg=PANEL,
+        padx=10,
+        pady=10
+    ):
+
+        frame = tk.Frame(
+            parent,
+            bg=bg,
+            padx=padx,
+            pady=pady,
+            relief="raised",
+            bd=3,
+            highlightthickness=1,
+            highlightbackground=BORDER
+        )
+
+        return frame
+
+    # ========================================================
+    # 3D BUTTON
+    # ========================================================
+
+    def create_arcade_button(
+        self,
+        parent,
+        text,
+        command,
+        width=18
+    ):
+
+        button = tk.Button(
+            parent,
+            text=text,
+            command=command,
+            width=width,
+            height=2,
+            font=(
+                FONT,
+                11,
+                "bold"
+            ),
+            bg=BUTTON,
+            fg=TEXT,
+            activebackground=BUTTON_PRESS,
+            activeforeground=TEXT,
+            relief="raised",
+            bd=4,
+            padx=8,
+            pady=4,
+            cursor="hand2"
+        )
+
+        return button
 
     # ========================================================
     # HOME SCREEN
@@ -235,86 +337,135 @@ class BlockMaster:
 
         self.clear_root()
 
-        self.home_frame = tk.Frame(
+        self.home_container = tk.Frame(
             self.root,
-            bg=HOME_BG,
-            padx=50,
-            pady=40
+            bg=BG
         )
 
-        self.home_frame.pack(
-            expand=True
+        self.home_container.pack(
+            fill="both",
+            expand=True,
+            padx=35,
+            pady=30
         )
 
-        # ----------------------------------------------------
+        # ====================================================
         # TITLE
-        # ----------------------------------------------------
+        # ====================================================
 
-        title_box = tk.Frame(
-            self.home_frame,
-            bg=PANEL,
-            padx=50,
-            pady=25
+        title_frame = self.create_3d_frame(
+            self.home_container,
+            bg=PANEL_DARK,
+            padx=30,
+            pady=18
         )
 
-        title_box.pack(
-            pady=20
+        title_frame.pack(
+            fill="x",
+            pady=(0, 20)
         )
 
         title = tk.Label(
-            title_box,
-            text="BLOCKMASTER",
-            font=("Arial", 30, "bold"),
-            bg=PANEL,
-            fg=TEXT
+            title_frame,
+            text="B L O C K M A S T E R",
+            font=(
+                FONT,
+                27,
+                "bold"
+            ),
+            bg=PANEL_DARK,
+            fg=ACCENT
         )
 
         title.pack()
 
         subtitle = tk.Label(
-            title_box,
-            text="ARCADE BLOCK PUZZLE",
-            font=("Arial", 11, "bold"),
-            bg=PANEL,
-            fg=TEXT
+            title_frame,
+            text="A R C A D E   B L O C K   P U Z Z L E",
+            font=(
+                FONT,
+                9,
+                "bold"
+            ),
+            bg=PANEL_DARK,
+            fg=TEXT_DIM
         )
 
         subtitle.pack(
-            pady=(5, 0)
+            pady=(6, 0)
         )
 
-        # ----------------------------------------------------
-        # NAME BOX
-        # ----------------------------------------------------
+        # ====================================================
+        # MAIN HOME AREA
+        # ====================================================
 
-        name_box = tk.Frame(
-            self.home_frame,
+        home_area = tk.Frame(
+            self.home_container,
+            bg=BG
+        )
+
+        home_area.pack(
+            fill="both",
+            expand=True
+        )
+
+        # ====================================================
+        # LEFT SIDE
+        # ====================================================
+
+        left = tk.Frame(
+            home_area,
+            bg=BG
+        )
+
+        left.pack(
+            side="left",
+            fill="y",
+            padx=(0, 15)
+        )
+
+        # ====================================================
+        # PLAYER BOX
+        # ====================================================
+
+        player_box = self.create_3d_frame(
+            left,
+            bg=PANEL
+        )
+
+        player_box.pack(
+            fill="x",
+            pady=8
+        )
+
+        player_title = tk.Label(
+            player_box,
+            text="PLAYER",
+            font=(
+                FONT,
+                10,
+                "bold"
+            ),
             bg=PANEL,
-            padx=30,
-            pady=25
+            fg=TEXT_DIM
         )
 
-        name_box.pack(
-            pady=15
-        )
-
-        name_label = tk.Label(
-            name_box,
-            text="PLAYER NAME",
-            font=("Arial", 12, "bold"),
-            bg=PANEL,
-            fg=TEXT
-        )
-
-        name_label.pack(
-            pady=(0, 10)
-        )
+        player_title.pack()
 
         self.name_entry = tk.Entry(
-            name_box,
-            width=25,
-            font=("Arial", 13),
-            justify="center"
+            player_box,
+            width=22,
+            font=(
+                FONT,
+                12,
+                "bold"
+            ),
+            justify="center",
+            bg=BG_DARK,
+            fg=TEXT,
+            insertbackground=TEXT,
+            relief="sunken",
+            bd=3
         )
 
         self.name_entry.insert(
@@ -322,78 +473,267 @@ class BlockMaster:
             "PLAYER"
         )
 
-        self.name_entry.pack()
+        self.name_entry.pack(
+            pady=10,
+            ipady=7
+        )
 
-        # ----------------------------------------------------
+        # ====================================================
         # START BUTTON
-        # ----------------------------------------------------
+        # ====================================================
 
-        start_button = tk.Button(
-            self.home_frame,
-            text="START GAME",
-            font=("Arial", 13, "bold"),
-            width=18,
-            height=2,
-            bg=BUTTON_BG,
-            activebackground=BUTTON_ACTIVE,
-            fg=TEXT,
-            relief="flat",
-            command=self.start_game
+        start_button = self.create_arcade_button(
+            left,
+            "▶  START GAME",
+            self.start_game,
+            width=22
         )
 
         start_button.pack(
-            pady=15
+            pady=10
         )
 
-        # ----------------------------------------------------
-        # QUIT BUTTON
-        # ----------------------------------------------------
-
-        quit_button = tk.Button(
-            self.home_frame,
-            text="QUIT",
-            font=("Arial", 11, "bold"),
-            width=18,
-            bg=PANEL,
-            activebackground=BUTTON_ACTIVE,
-            fg=TEXT,
-            relief="flat",
-            command=self.root.destroy
-        )
-
-        quit_button.pack(
-            pady=5
-        )
-
-        # ----------------------------------------------------
+        # ====================================================
         # INSTRUCTIONS
-        # ----------------------------------------------------
+        # ====================================================
 
-        instruction_box = tk.Frame(
-            self.home_frame,
-            bg=PANEL_LIGHT,
-            padx=25,
-            pady=15
+        instruction_box = self.create_3d_frame(
+            left,
+            bg=PANEL_DARK
         )
 
         instruction_box.pack(
-            pady=20
+            fill="x",
+            pady=10
+        )
+
+        instruction_title = tk.Label(
+            instruction_box,
+            text="CONTROLS",
+            font=(
+                FONT,
+                10,
+                "bold"
+            ),
+            bg=PANEL_DARK,
+            fg=ACCENT
+        )
+
+        instruction_title.pack(
+            pady=(0, 10)
+        )
+
+        instruction_text = (
+            "← →   MOVE\n"
+            "↑ ↓   ROTATE\n"
+            "SPACE   DROP\n"
+            "\n"
+            "CLEAR 6+ CELLS\n"
+            "BUILD COMBOS"
         )
 
         instruction = tk.Label(
             instruction_box,
-            text=(
-                "← →  MOVE\n"
-                "↑ ↓  ROTATE\n"
-                "SPACE  DROP"
+            text=instruction_text,
+            font=(
+                FONT,
+                9,
+                "bold"
             ),
-            font=("Arial", 10),
-            bg=PANEL_LIGHT,
-            fg=TEXT,
+            bg=PANEL_DARK,
+            fg=TEXT_DIM,
             justify="center"
         )
 
         instruction.pack()
+
+        # ====================================================
+        # RIGHT SIDE — LEADERBOARD
+        # ====================================================
+
+        right = tk.Frame(
+            home_area,
+            bg=BG
+        )
+
+        right.pack(
+            side="left",
+            fill="both",
+            expand=True
+        )
+
+        # ====================================================
+        # SESSION LEADERBOARD
+        # ====================================================
+
+        leaderboard_box = self.create_3d_frame(
+            right,
+            bg=PANEL
+        )
+
+        leaderboard_box.pack(
+            fill="both",
+            expand=True,
+            pady=8
+        )
+
+        leaderboard_title = tk.Label(
+            leaderboard_box,
+            text="🏆  SESSION LEADERBOARD",
+            font=(
+                FONT,
+                12,
+                "bold"
+            ),
+            bg=PANEL,
+            fg=ACCENT
+        )
+
+        leaderboard_title.pack(
+            pady=(0, 12)
+        )
+
+        # ----------------------------------------------------
+        # Header
+        # ----------------------------------------------------
+
+        header = tk.Frame(
+            leaderboard_box,
+            bg=PANEL_LIGHT,
+            relief="raised",
+            bd=2
+        )
+
+        header.pack(
+            fill="x"
+        )
+
+        tk.Label(
+            header,
+            text="RANK",
+            width=6,
+            font=(
+                FONT,
+                9,
+                "bold"
+            ),
+            bg=PANEL_LIGHT,
+            fg=TEXT_DIM
+        ).pack(
+            side="left"
+        )
+
+        tk.Label(
+            header,
+            text="PLAYER",
+            width=16,
+            font=(
+                FONT,
+                9,
+                "bold"
+            ),
+            bg=PANEL_LIGHT,
+            fg=TEXT_DIM
+        ).pack(
+            side="left"
+        )
+
+        tk.Label(
+            header,
+            text="SCORE",
+            width=10,
+            font=(
+                FONT,
+                9,
+                "bold"
+            ),
+            bg=PANEL_LIGHT,
+            fg=TEXT_DIM
+        ).pack(
+            side="left"
+        )
+
+        # ----------------------------------------------------
+        # Leaderboard rows
+        # ----------------------------------------------------
+
+        self.leaderboard_frame = tk.Frame(
+            leaderboard_box,
+            bg=PANEL
+        )
+
+        self.leaderboard_frame.pack(
+            fill="both",
+            expand=True
+        )
+
+        self.refresh_leaderboard()
+
+        # ====================================================
+        # ALL-TIME SCORE
+        # ====================================================
+
+        high_box = self.create_3d_frame(
+            right,
+            bg=PANEL_DARK
+        )
+
+        high_box.pack(
+            fill="x",
+            pady=10
+        )
+
+        high_title = tk.Label(
+            high_box,
+            text="👑  HIGHEST SCORE THIS SESSION",
+            font=(
+                FONT,
+                10,
+                "bold"
+            ),
+            bg=PANEL_DARK,
+            fg=TEXT_DIM
+        )
+
+        high_title.pack()
+
+        self.home_high_score_label = tk.Label(
+            high_box,
+            text=str(
+                self.high_score
+            ),
+            font=(
+                FONT,
+                25,
+                "bold"
+            ),
+            bg=PANEL_DARK,
+            fg=ACCENT
+        )
+
+        self.home_high_score_label.pack(
+            pady=5
+        )
+
+        # ====================================================
+        # FOOTER
+        # ====================================================
+
+        footer = tk.Label(
+            self.home_container,
+            text="BLOCKMASTER  •  ARCADE MODE",
+            font=(
+                FONT,
+                8,
+                "bold"
+            ),
+            bg=BG,
+            fg=TEXT_DIM
+        )
+
+        footer.pack(
+            pady=10
+        )
 
         self.name_entry.focus()
 
@@ -401,16 +741,6 @@ class BlockMaster:
             "<Return>",
             lambda event: self.start_game()
         )
-
-    # ========================================================
-    # CLEAR ROOT
-    # ========================================================
-
-    def clear_root(self):
-
-        for widget in self.root.winfo_children():
-
-            widget.destroy()
 
     # ========================================================
     # START GAME
@@ -424,7 +754,7 @@ class BlockMaster:
 
             name = "PLAYER"
 
-        self.player_name = name
+        self.player_name = name.upper()
 
         self.score = 0
 
@@ -439,6 +769,8 @@ class BlockMaster:
         self.game_over = False
 
         self.paused = False
+
+        self.countdown_active = False
 
         self.board = [
             [0 for _ in range(COLS)]
@@ -482,78 +814,80 @@ class BlockMaster:
 
         self.game_container = tk.Frame(
             self.root,
-            bg=BACKGROUND,
+            bg=BG
+        )
+
+        self.game_container.pack(
+            fill="both",
+            expand=True,
             padx=25,
             pady=20
         )
 
-        self.game_container.pack(
-            expand=True
-        )
-
         # ====================================================
-        # TOP PLAYER DISPLAY
+        # TOP PLAYER BOX
         # ====================================================
 
-        self.player_box = tk.Frame(
+        player_box = self.create_3d_frame(
             self.game_container,
-            bg=PANEL,
-            padx=25,
+            bg=PANEL_DARK,
+            padx=20,
             pady=10
         )
 
-        self.player_box.pack(
+        player_box.pack(
+            fill="x",
             pady=(0, 15)
         )
 
         self.player_label = tk.Label(
-            self.player_box,
-            text=f"PLAYER: {self.player_name}",
-            font=("Arial", 17, "bold"),
-            bg=PANEL,
-            fg=TEXT
+            player_box,
+            text=f"PLAYER  //  {self.player_name}",
+            font=(
+                FONT,
+                15,
+                "bold"
+            ),
+            bg=PANEL_DARK,
+            fg=ACCENT
         )
 
         self.player_label.pack()
 
         # ====================================================
-        # MAIN GAME AREA
+        # GAME AREA
         # ====================================================
 
         self.main_game_area = tk.Frame(
             self.game_container,
-            bg=BACKGROUND
+            bg=BG
         )
 
         self.main_game_area.pack()
 
         # ====================================================
-        # BOARD BOX
+        # BOARD CONTAINER
         # ====================================================
 
-        self.board_box = tk.Frame(
+        board_outer = self.create_3d_frame(
             self.main_game_area,
-            bg=PANEL,
-            padx=15,
-            pady=15
+            bg=PANEL_DARK,
+            padx=12,
+            pady=12
         )
 
-        self.board_box.pack(
+        board_outer.pack(
             side="left",
-            padx=15
+            padx=12
         )
-
-        # ====================================================
-        # CANVAS
-        # ====================================================
 
         self.canvas = tk.Canvas(
-            self.board_box,
+            board_outer,
             width=BOARD_WIDTH,
             height=BOARD_HEIGHT,
             bg=BOARD_BG,
-            highlightthickness=2,
-            highlightbackground=GRID_COLOR
+            highlightthickness=3,
+            highlightbackground=BORDER
         )
 
         self.canvas.pack()
@@ -564,8 +898,8 @@ class BlockMaster:
 
         self.side_panel = tk.Frame(
             self.main_game_area,
-            bg=BACKGROUND,
-            width=230
+            bg=BG,
+            width=260
         )
 
         self.side_panel.pack(
@@ -575,91 +909,91 @@ class BlockMaster:
         )
 
         # ====================================================
-        # SCORE BOX
+        # SCORE
         # ====================================================
 
-        self.score_box = self.create_stat_box(
+        score_box = self.create_stat_box(
             self.side_panel,
             "SCORE",
             "0"
         )
 
-        self.score_box.pack(
-            pady=7
+        score_box.pack(
+            fill="x",
+            pady=6
         )
 
-        self.score_value = self.score_box.value_label
+        self.score_value = score_box.value_label
 
         # ====================================================
-        # HIGH SCORE BOX
+        # HIGH SCORE
         # ====================================================
 
-        self.high_score_box = self.create_stat_box(
+        high_box = self.create_stat_box(
             self.side_panel,
             "HIGH SCORE",
-            "0"
+            str(self.high_score)
         )
 
-        self.high_score_box.pack(
-            pady=7
+        high_box.pack(
+            fill="x",
+            pady=6
         )
 
-        self.high_score_value = (
-            self.high_score_box.value_label
-        )
+        self.high_score_value = high_box.value_label
 
         # ====================================================
-        # LEVEL BOX
+        # LEVEL
         # ====================================================
 
-        self.level_box = self.create_stat_box(
+        level_box = self.create_stat_box(
             self.side_panel,
             "LEVEL",
             "1"
         )
 
-        self.level_box.pack(
-            pady=7
+        level_box.pack(
+            fill="x",
+            pady=6
         )
 
-        self.level_value = (
-            self.level_box.value_label
-        )
+        self.level_value = level_box.value_label
 
         # ====================================================
-        # NEXT BOX
+        # NEXT BLOCK
         # ====================================================
 
-        self.next_box = tk.Frame(
+        next_box = self.create_3d_frame(
             self.side_panel,
+            bg=PANEL
+        )
+
+        next_box.pack(
+            fill="x",
+            pady=10
+        )
+
+        tk.Label(
+            next_box,
+            text="NEXT BLOCK",
+            font=(
+                FONT,
+                10,
+                "bold"
+            ),
             bg=PANEL,
-            padx=15,
-            pady=15
-        )
-
-        self.next_box.pack(
-            pady=15
-        )
-
-        next_title = tk.Label(
-            self.next_box,
-            text="NEXT",
-            font=("Arial", 12, "bold"),
-            bg=PANEL,
-            fg=TEXT
-        )
-
-        next_title.pack(
+            fg=TEXT_DIM
+        ).pack(
             pady=(0, 8)
         )
 
         self.next_canvas = tk.Canvas(
-            self.next_box,
-            width=150,
-            height=120,
-            bg=PANEL_LIGHT,
-            highlightthickness=1,
-            highlightbackground=GRID_COLOR
+            next_box,
+            width=180,
+            height=125,
+            bg=BG_DARK,
+            highlightthickness=2,
+            highlightbackground=BORDER
         )
 
         self.next_canvas.pack()
@@ -668,21 +1002,105 @@ class BlockMaster:
         # MENU BUTTON
         # ====================================================
 
-        self.menu_button = tk.Button(
+        self.menu_button = self.create_arcade_button(
             self.side_panel,
-            text="MENU",
-            font=("Arial", 11, "bold"),
-            width=16,
-            height=2,
-            bg=BUTTON_BG,
-            activebackground=BUTTON_ACTIVE,
-            fg=TEXT,
-            relief="flat",
-            command=self.open_menu
+            "☰  MENU",
+            self.toggle_menu,
+            width=18
         )
 
         self.menu_button.pack(
+            pady=10
+        )
+
+        # ====================================================
+        # MENU PANEL
+        # ====================================================
+
+        self.menu_panel = self.create_3d_frame(
+            self.side_panel,
+            bg=PANEL_DARK,
+            padx=15,
             pady=15
+        )
+
+        self.menu_visible = False
+
+        # Menu title
+        menu_title = tk.Label(
+            self.menu_panel,
+            text="GAME MENU",
+            font=(
+                FONT,
+                11,
+                "bold"
+            ),
+            bg=PANEL_DARK,
+            fg=ACCENT
+        )
+
+        menu_title.pack(
+            pady=(0, 10)
+        )
+
+        # Resume
+        self.resume_button = self.create_arcade_button(
+            self.menu_panel,
+            "▶  RESUME",
+            self.resume_game,
+            width=16
+        )
+
+        self.resume_button.pack(
+            pady=4
+        )
+
+        # Pause
+        self.pause_button = self.create_arcade_button(
+            self.menu_panel,
+            "Ⅱ  PAUSE",
+            self.pause_game,
+            width=16
+        )
+
+        self.pause_button.pack(
+            pady=4
+        )
+
+        # Reset
+        reset_button = self.create_arcade_button(
+            self.menu_panel,
+            "↻  RESET",
+            self.reset_game,
+            width=16
+        )
+
+        reset_button.pack(
+            pady=4
+        )
+
+        # Home
+        home_button = self.create_arcade_button(
+            self.menu_panel,
+            "⌂  HOME",
+            self.go_home,
+            width=16
+        )
+
+        home_button.pack(
+            pady=4
+        )
+
+        # Quit
+        quit_button = self.create_arcade_button(
+            self.menu_panel,
+            "✕  QUIT",
+            self.quit_game,
+            width=16
+        )
+
+        quit_button.pack(
+            pady=4
         )
 
         # ====================================================
@@ -725,20 +1143,23 @@ class BlockMaster:
         value
     ):
 
-        box = tk.Frame(
+        box = self.create_3d_frame(
             parent,
             bg=PANEL,
-            width=210,
-            padx=20,
-            pady=12
+            padx=15,
+            pady=10
         )
 
         title_label = tk.Label(
             box,
             text=title,
-            font=("Arial", 10, "bold"),
+            font=(
+                FONT,
+                9,
+                "bold"
+            ),
             bg=PANEL,
-            fg=TEXT
+            fg=TEXT_DIM
         )
 
         title_label.pack()
@@ -746,7 +1167,11 @@ class BlockMaster:
         value_label = tk.Label(
             box,
             text=value,
-            font=("Arial", 18, "bold"),
+            font=(
+                FONT,
+                18,
+                "bold"
+            ),
             bg=PANEL,
             fg=TEXT
         )
@@ -772,8 +1197,6 @@ class BlockMaster:
         self.show_countdown()
 
     # ========================================================
-    # SHOW COUNTDOWN
-    # ========================================================
 
     def show_countdown(self):
 
@@ -784,18 +1207,16 @@ class BlockMaster:
         self.draw()
 
         center_x = BOARD_WIDTH / 2
-
         center_y = BOARD_HEIGHT / 2
 
-        # Background box
         self.canvas.create_rectangle(
-            center_x - 100,
-            center_y - 80,
-            center_x + 100,
-            center_y + 80,
-            fill=PANEL,
-            outline=GRID_COLOR,
-            width=2
+            center_x - 120,
+            center_y - 100,
+            center_x + 120,
+            center_y + 100,
+            fill=PANEL_DARK,
+            outline=ACCENT,
+            width=3
         )
 
         if self.countdown_value > 0:
@@ -806,8 +1227,12 @@ class BlockMaster:
                 text=str(
                     self.countdown_value
                 ),
-                font=("Arial", 60, "bold"),
-                fill=TEXT
+                font=(
+                    FONT,
+                    65,
+                    "bold"
+                ),
+                fill=ACCENT
             )
 
             self.countdown_value -= 1
@@ -823,8 +1248,12 @@ class BlockMaster:
                 center_x,
                 center_y,
                 text="GO!",
-                font=("Arial", 42, "bold"),
-                fill=TEXT
+                font=(
+                    FONT,
+                    40,
+                    "bold"
+                ),
+                fill=SUCCESS
             )
 
             self.root.after(
@@ -832,8 +1261,6 @@ class BlockMaster:
                 self.finish_countdown
             )
 
-    # ========================================================
-    # FINISH COUNTDOWN
     # ========================================================
 
     def finish_countdown(self):
@@ -845,7 +1272,7 @@ class BlockMaster:
         self.fall()
 
     # ========================================================
-    # SPAWN BLOCK
+    # SPAWN
     # ========================================================
 
     def spawn_block(self):
@@ -876,12 +1303,12 @@ class BlockMaster:
 
         self.block_row = 0
 
-        block_width = len(
+        width = len(
             self.current_block[0]
         )
 
         self.block_col = (
-            COLS - block_width
+            COLS - width
         ) // 2
 
         if not self.can_place(
@@ -892,17 +1319,26 @@ class BlockMaster:
 
             self.game_over = True
 
+            self.save_finished_game()
+
     # ========================================================
-    # DRAW BOARD
+    # DRAW
     # ========================================================
 
     def draw(self):
 
+        if not hasattr(
+            self,
+            "canvas"
+        ):
+
+            return
+
         self.canvas.delete("all")
 
-        # ----------------------------------------------------
+        # ====================================================
         # GRID
-        # ----------------------------------------------------
+        # ====================================================
 
         for row in range(ROWS):
 
@@ -920,12 +1356,12 @@ class BlockMaster:
                     x2,
                     y2,
                     fill=BOARD_BG,
-                    outline=GRID_COLOR
+                    outline=GRID
                 )
 
-        # ----------------------------------------------------
+        # ====================================================
         # LOCKED BLOCKS
-        # ----------------------------------------------------
+        # ====================================================
 
         for row in range(ROWS):
 
@@ -945,9 +1381,9 @@ class BlockMaster:
                         color
                     )
 
-        # ----------------------------------------------------
+        # ====================================================
         # CURRENT BLOCK
-        # ----------------------------------------------------
+        # ====================================================
 
         if (
             self.current_block is not None
@@ -980,9 +1416,9 @@ class BlockMaster:
                             self.current_color
                         )
 
-        # ----------------------------------------------------
+        # ====================================================
         # NEXT
-        # ----------------------------------------------------
+        # ====================================================
 
         if hasattr(
             self,
@@ -991,44 +1427,9 @@ class BlockMaster:
 
             self.draw_next_shape()
 
-        # ----------------------------------------------------
-        # GAME OVER
-        # ----------------------------------------------------
-
-        if self.game_over:
-
-            center_x = BOARD_WIDTH / 2
-            center_y = BOARD_HEIGHT / 2
-
-            self.canvas.create_rectangle(
-                center_x - 130,
-                center_y - 90,
-                center_x + 130,
-                center_y + 90,
-                fill=PANEL,
-                outline=GRID_COLOR,
-                width=2
-            )
-
-            self.canvas.create_text(
-                center_x,
-                center_y - 30,
-                text="GAME OVER",
-                font=("Arial", 25, "bold"),
-                fill=TEXT
-            )
-
-            self.canvas.create_text(
-                center_x,
-                center_y + 20,
-                text="Press R to Restart",
-                font=("Arial", 11),
-                fill=TEXT
-            )
-
-        # ----------------------------------------------------
-        # PAUSED
-        # ----------------------------------------------------
+        # ====================================================
+        # PAUSE
+        # ====================================================
 
         if self.paused:
 
@@ -1036,26 +1437,104 @@ class BlockMaster:
             center_y = BOARD_HEIGHT / 2
 
             self.canvas.create_rectangle(
-                center_x - 110,
-                center_y - 65,
-                center_x + 110,
-                center_y + 65,
-                fill=PANEL,
-                outline=GRID_COLOR,
-                width=2
+                center_x - 120,
+                center_y - 70,
+                center_x + 120,
+                center_y + 70,
+                fill=PANEL_DARK,
+                outline=ACCENT,
+                width=3
             )
 
             self.canvas.create_text(
                 center_x,
                 center_y,
                 text="PAUSED",
-                font=("Arial", 25, "bold"),
+                font=(
+                    FONT,
+                    25,
+                    "bold"
+                ),
+                fill=ACCENT
+            )
+
+        # ====================================================
+        # GAME OVER
+        # ====================================================
+
+        if self.game_over:
+
+            center_x = BOARD_WIDTH / 2
+            center_y = BOARD_HEIGHT / 2
+
+            self.canvas.create_rectangle(
+                center_x - 140,
+                center_y - 115,
+                center_x + 140,
+                center_y + 115,
+                fill=PANEL_DARK,
+                outline=ACCENT,
+                width=3
+            )
+
+            self.canvas.create_text(
+                center_x,
+                center_y - 65,
+                text="GAME OVER",
+                font=(
+                    FONT,
+                    23,
+                    "bold"
+                ),
                 fill=TEXT
             )
 
-        # ----------------------------------------------------
-        # UPDATE SIDE PANEL
-        # ----------------------------------------------------
+            self.canvas.create_text(
+                center_x,
+                center_y - 20,
+                text=f"SCORE: {self.score}",
+                font=(
+                    FONT,
+                    12,
+                    "bold"
+                ),
+                fill=ACCENT
+            )
+
+            # Restart icon/button
+            self.canvas.create_rectangle(
+                center_x - 95,
+                center_y + 15,
+                center_x + 95,
+                center_y + 65,
+                fill=BUTTON,
+                outline=BORDER,
+                width=3,
+                tags="restart_button"
+            )
+
+            self.canvas.create_text(
+                center_x,
+                center_y + 40,
+                text="↻  RESTART",
+                font=(
+                    FONT,
+                    11,
+                    "bold"
+                ),
+                fill=TEXT,
+                tags="restart_button"
+            )
+
+            self.canvas.tag_bind(
+                "restart_button",
+                "<Button-1>",
+                lambda event: self.reset_game()
+            )
+
+        # ====================================================
+        # UPDATE STATS
+        # ====================================================
 
         if hasattr(
             self,
@@ -1092,53 +1571,68 @@ class BlockMaster:
             x + CELL_SIZE - 2,
             y + CELL_SIZE - 2,
             fill=color,
-            outline=TEXT
+            outline=BG_DARK,
+            width=2
         )
 
         # Top highlight
         self.canvas.create_polygon(
-            x + 3,
-            y + 3,
-            x + CELL_SIZE - 3,
-            y + 3,
-            x + CELL_SIZE - 7,
-            y + 7,
-            x + 7,
-            y + 7,
-            fill="#FFFFFF",
+            x + 4,
+            y + 4,
+            x + CELL_SIZE - 4,
+            y + 4,
+            x + CELL_SIZE - 8,
+            y + 8,
+            x + 8,
+            y + 8,
+            fill="#D8DEE5",
             outline=""
         )
 
         # Left highlight
         self.canvas.create_polygon(
-            x + 3,
-            y + 3,
-            x + 7,
-            y + 7,
-            x + 7,
-            y + CELL_SIZE - 7,
-            x + 3,
-            y + CELL_SIZE - 3,
-            fill="#FFFFFF",
+            x + 4,
+            y + 4,
+            x + 8,
+            y + 8,
+            x + 8,
+            y + CELL_SIZE - 8,
+            x + 4,
+            y + CELL_SIZE - 4,
+            fill="#C5CDD5",
             outline=""
         )
 
         # Bottom shadow
         self.canvas.create_polygon(
-            x + 3,
-            y + CELL_SIZE - 3,
-            x + CELL_SIZE - 3,
-            y + CELL_SIZE - 3,
-            x + CELL_SIZE - 7,
-            y + CELL_SIZE - 7,
-            x + 7,
-            y + CELL_SIZE - 7,
-            fill="#B8B1A8",
+            x + 4,
+            y + CELL_SIZE - 4,
+            x + CELL_SIZE - 4,
+            y + CELL_SIZE - 4,
+            x + CELL_SIZE - 8,
+            y + CELL_SIZE - 8,
+            x + 8,
+            y + CELL_SIZE - 8,
+            fill="#59616D",
+            outline=""
+        )
+
+        # Right shadow
+        self.canvas.create_polygon(
+            x + CELL_SIZE - 4,
+            y + 4,
+            x + CELL_SIZE - 8,
+            y + 8,
+            x + CELL_SIZE - 8,
+            y + CELL_SIZE - 8,
+            x + CELL_SIZE - 4,
+            y + CELL_SIZE - 4,
+            fill="#68717D",
             outline=""
         )
 
     # ========================================================
-    # NEXT SHAPE
+    # NEXT BLOCK
     # ========================================================
 
     def draw_next_shape(self):
@@ -1156,11 +1650,11 @@ class BlockMaster:
         height = rows * cell
 
         start_x = (
-            150 - width
+            180 - width
         ) / 2
 
         start_y = (
-            120 - height
+            125 - height
         ) / 2
 
         for r in range(rows):
@@ -1179,27 +1673,28 @@ class BlockMaster:
                         + r * cell
                     )
 
-                    # Simple 3D preview
                     self.next_canvas.create_rectangle(
                         x + 2,
                         y + 2,
                         x + cell - 2,
                         y + cell - 2,
                         fill=self.next_color,
-                        outline=TEXT
+                        outline=BG_DARK,
+                        width=2
                     )
 
+                    # Highlight
                     self.next_canvas.create_line(
                         x + 4,
                         y + 4,
                         x + cell - 5,
                         y + 4,
-                        fill="white",
+                        fill="#D8DEE5",
                         width=2
                     )
 
     # ========================================================
-    # CAN PLACE
+    # COLLISION
     # ========================================================
 
     def can_place(
@@ -1245,7 +1740,7 @@ class BlockMaster:
         return True
 
     # ========================================================
-    # MOVE
+    # MOVE LEFT
     # ========================================================
 
     def move_left(
@@ -1271,6 +1766,8 @@ class BlockMaster:
         self.draw()
 
     # ========================================================
+    # MOVE RIGHT
+    # ========================================================
 
     def move_right(
         self,
@@ -1295,7 +1792,7 @@ class BlockMaster:
         self.draw()
 
     # ========================================================
-    # ROTATE
+    # ROTATION
     # ========================================================
 
     def rotate_matrix(
@@ -1337,7 +1834,7 @@ class BlockMaster:
         self.draw()
 
     # ========================================================
-    # LOCK BLOCK
+    # LOCK
     # ========================================================
 
     def lock_block(self):
@@ -1363,10 +1860,8 @@ class BlockMaster:
                     )
 
                     if (
-                        board_row >= 0
-                        and board_row < ROWS
-                        and board_col >= 0
-                        and board_col < COLS
+                        0 <= board_row < ROWS
+                        and 0 <= board_col < COLS
                     ):
 
                         self.board[
@@ -1383,13 +1878,13 @@ class BlockMaster:
 
                         cells += 1
 
-        # Placement score
+        # Basic placement score
         self.score += cells
 
         self.update_level()
 
     # ========================================================
-    # ARCADE CLEAR
+    # ARCADE CLEAR SYSTEM
     # ========================================================
 
     def arcade_clear(self):
@@ -1397,9 +1892,7 @@ class BlockMaster:
         qualifying_rows = []
 
         # ----------------------------------------------------
-        # NEW REQUIREMENT:
-        #
-        # 6 OR MORE OCCUPIED CELLS = CLEAR
+        # 6+ CELLS = CLEAR
         # ----------------------------------------------------
 
         for row in range(ROWS):
@@ -1415,7 +1908,7 @@ class BlockMaster:
                 )
 
         # ----------------------------------------------------
-        # No qualifying rows
+        # Nothing cleared
         # ----------------------------------------------------
 
         if not qualifying_rows:
@@ -1425,7 +1918,7 @@ class BlockMaster:
             return
 
         # ----------------------------------------------------
-        # Combo
+        # COMBO
         # ----------------------------------------------------
 
         self.combo += 1
@@ -1435,7 +1928,7 @@ class BlockMaster:
         )
 
         # ----------------------------------------------------
-        # Determine strongest row
+        # Strongest row
         # ----------------------------------------------------
 
         strongest = 0
@@ -1446,12 +1939,13 @@ class BlockMaster:
                 self.board[row]
             )
 
-            if filled > strongest:
-
-                strongest = filled
+            strongest = max(
+                strongest,
+                filled
+            )
 
         # ----------------------------------------------------
-        # Determine neighboring rows
+        # Neighbor rows
         # ----------------------------------------------------
 
         neighbor_rows = set()
@@ -1471,7 +1965,7 @@ class BlockMaster:
                 )
 
         # ----------------------------------------------------
-        # CLEAR QUALIFYING ROWS
+        # Clear main rows
         # ----------------------------------------------------
 
         for row in qualifying_rows:
@@ -1485,9 +1979,7 @@ class BlockMaster:
             ]
 
         # ----------------------------------------------------
-        # 6 CELLS
-        #
-        # Small neighboring damage
+        # 6 cells
         # ----------------------------------------------------
 
         if strongest == 6:
@@ -1495,9 +1987,7 @@ class BlockMaster:
             damage_ratio = 0.25
 
         # ----------------------------------------------------
-        # 7 CELLS
-        #
-        # Medium neighboring damage
+        # 7 cells
         # ----------------------------------------------------
 
         elif strongest == 7:
@@ -1505,9 +1995,7 @@ class BlockMaster:
             damage_ratio = 0.50
 
         # ----------------------------------------------------
-        # 8 CELLS
-        #
-        # Major 3-row clear
+        # 8 cells
         # ----------------------------------------------------
 
         else:
@@ -1515,7 +2003,7 @@ class BlockMaster:
             damage_ratio = 0.75
 
         # ----------------------------------------------------
-        # DAMAGE NEIGHBOR ROWS
+        # DAMAGE NEIGHBORS
         # ----------------------------------------------------
 
         for row in neighbor_rows:
@@ -1532,7 +2020,7 @@ class BlockMaster:
                 occupied
             )
 
-            if len(occupied) > 0:
+            if occupied:
 
                 damage = max(
                     1,
@@ -1560,10 +2048,6 @@ class BlockMaster:
 
         # ----------------------------------------------------
         # COMBO BLAST
-        #
-        # If the player clears successfully
-        # multiple times in a row, damage
-        # additional surrounding rows.
         # ----------------------------------------------------
 
         if self.combo >= 2:
@@ -1577,8 +2061,7 @@ class BlockMaster:
                     target = row + offset
 
                     if (
-                        target >= 0
-                        and target < ROWS
+                        0 <= target < ROWS
                     ):
 
                         extra_rows.add(
@@ -1636,27 +2119,20 @@ class BlockMaster:
 
             base_score = 100
 
-        # Multiple qualifying rows
         row_bonus = (
             len(qualifying_rows)
             * 10
         )
 
-        # Combo bonus
         combo_bonus = (
             self.combo
             * 25
         )
 
-        # Strong clear bonus
         strong_bonus = (
             strongest
             * 5
         )
-
-        # ----------------------------------------------------
-        # BIG BLAST BONUS
-        # ----------------------------------------------------
 
         blast_bonus = 0
 
@@ -1675,10 +2151,6 @@ class BlockMaster:
             + blast_bonus
         )
 
-        # ----------------------------------------------------
-        # Level
-        # ----------------------------------------------------
-
         self.update_level()
 
     # ========================================================
@@ -1691,7 +2163,6 @@ class BlockMaster:
             self.score // LEVEL_SCORE
         ) + 1
 
-        # Faster every level
         self.fall_speed = max(
             MIN_FALL_SPEED,
             START_FALL_SPEED
@@ -1701,7 +2172,6 @@ class BlockMaster:
             )
         )
 
-        # High score
         if self.score > self.high_score:
 
             self.high_score = self.score
@@ -1734,16 +2204,13 @@ class BlockMaster:
 
             dropped += 1
 
-        # Drop score
+        # Drop bonus
         self.score += dropped
 
-        # Lock
         self.lock_block()
 
-        # Clear
         self.arcade_clear()
 
-        # New block
         self.spawn_block()
 
         self.draw()
@@ -1774,7 +2241,7 @@ class BlockMaster:
             return
 
         # ----------------------------------------------------
-        # Try moving down
+        # Move down
         # ----------------------------------------------------
 
         if self.can_place(
@@ -1787,13 +2254,10 @@ class BlockMaster:
 
         else:
 
-            # Lock
             self.lock_block()
 
-            # Clear
             self.arcade_clear()
 
-            # Spawn
             self.spawn_block()
 
         self.draw()
@@ -1809,149 +2273,28 @@ class BlockMaster:
     # MENU
     # ========================================================
 
-    def open_menu(self):
+    def toggle_menu(self):
 
-        menu = tk.Toplevel(
-            self.root
-        )
+        if self.menu_visible:
 
-        menu.title(
-            "BlockMaster Menu"
-        )
+            self.menu_panel.pack_forget()
 
-        menu.geometry(
-            "300x390"
-        )
+            self.menu_visible = False
 
-        menu.resizable(
-            False,
-            False
-        )
+        else:
 
-        menu.configure(
-            bg=BACKGROUND
-        )
+            self.menu_panel.pack(
+                fill="x",
+                pady=8
+            )
 
-        title = tk.Label(
-            menu,
-            text="MENU",
-            font=("Arial", 20, "bold"),
-            bg=BACKGROUND,
-            fg=TEXT
-        )
-
-        title.pack(
-            pady=20
-        )
-
-        # ----------------------------------------------------
-        # RESUME
-        # ----------------------------------------------------
-
-        resume = tk.Button(
-            menu,
-            text="RESUME",
-            width=18,
-            height=2,
-            bg=BUTTON_BG,
-            activebackground=BUTTON_ACTIVE,
-            fg=TEXT,
-            relief="flat",
-            command=lambda: self.resume_game(menu)
-        )
-
-        resume.pack(
-            pady=6
-        )
-
-        # ----------------------------------------------------
-        # PAUSE
-        # ----------------------------------------------------
-
-        pause = tk.Button(
-            menu,
-            text="PAUSE",
-            width=18,
-            height=2,
-            bg=PANEL,
-            activebackground=BUTTON_ACTIVE,
-            fg=TEXT,
-            relief="flat",
-            command=lambda: self.pause_game(menu)
-        )
-
-        pause.pack(
-            pady=6
-        )
-
-        # ----------------------------------------------------
-        # RESET
-        # ----------------------------------------------------
-
-        reset = tk.Button(
-            menu,
-            text="RESET",
-            width=18,
-            height=2,
-            bg=PANEL,
-            activebackground=BUTTON_ACTIVE,
-            fg=TEXT,
-            relief="flat",
-            command=lambda: self.reset_game(menu)
-        )
-
-        reset.pack(
-            pady=6
-        )
-
-        # ----------------------------------------------------
-        # HOME
-        # ----------------------------------------------------
-
-        home = tk.Button(
-            menu,
-            text="HOME",
-            width=18,
-            height=2,
-            bg=PANEL,
-            activebackground=BUTTON_ACTIVE,
-            fg=TEXT,
-            relief="flat",
-            command=lambda: self.go_home(menu)
-        )
-
-        home.pack(
-            pady=6
-        )
-
-        # ----------------------------------------------------
-        # QUIT
-        # ----------------------------------------------------
-
-        quit_button = tk.Button(
-            menu,
-            text="QUIT",
-            width=18,
-            height=2,
-            bg=PANEL,
-            activebackground=BUTTON_ACTIVE,
-            fg=TEXT,
-            relief="flat",
-            command=self.root.destroy
-        )
-
-        quit_button.pack(
-            pady=6
-        )
+            self.menu_visible = True
 
     # ========================================================
     # PAUSE
     # ========================================================
 
-    def pause_game(
-        self,
-        menu=None
-    ):
+    def pause_game(self):
 
         if not self.game_over:
 
@@ -1959,18 +2302,11 @@ class BlockMaster:
 
             self.draw()
 
-        if menu:
-
-            menu.destroy()
-
     # ========================================================
     # RESUME
     # ========================================================
 
-    def resume_game(
-        self,
-        menu=None
-    ):
+    def resume_game(self):
 
         if not self.game_over:
 
@@ -1978,56 +2314,279 @@ class BlockMaster:
 
             self.draw()
 
-        if menu:
-
-            menu.destroy()
-
     # ========================================================
     # RESET
     # ========================================================
 
-    def reset_game(
-        self,
-        menu=None
-    ):
+    def reset_game(self):
 
-        if menu:
+        # Save current game only if it has started
+        if self.player_name:
 
-            menu.destroy()
+            if self.score > 0:
 
-        self.start_game()
+                self.save_finished_game()
+
+        # Go back to player screen
+        self.create_home_screen()
+
+    # ========================================================
+    # SAVE FINISHED GAME
+    # ========================================================
+
+    def save_finished_game(self):
+
+        # Prevent accidental duplicate saves
+        if getattr(
+            self,
+            "score_saved",
+            False
+        ):
+
+            return
+
+        self.score_saved = True
+
+        result = {
+            "name": self.player_name,
+            "score": self.score
+        }
+
+        self.session_scores.append(
+            result
+        )
+
+        # Sort highest score first
+        self.session_scores.sort(
+            key=lambda x: x["score"],
+            reverse=True
+        )
+
+        # Keep only 10 recent score entries
+        # for the visible history.
+        #
+        # NOTE:
+        # The complete session data remains
+        # available in session_scores.
+        #
+        self.refresh_leaderboard()
+
+    # ========================================================
+    # QUIT
+    # ========================================================
+
+    def quit_game(self):
+
+        self.root.destroy()
 
     # ========================================================
     # HOME
     # ========================================================
 
-    def go_home(
-        self,
-        menu=None
-    ):
+    def go_home(self):
 
-        if menu:
+        if self.player_name:
 
-            menu.destroy()
+            if self.score > 0 and not self.game_over:
+
+                self.save_finished_game()
 
         self.create_home_screen()
 
     # ========================================================
-    # RESTART KEY
+    # REFRESH LEADERBOARD
     # ========================================================
 
-    def restart_key(
-        self,
-        event=None
-    ):
+    def refresh_leaderboard(self):
 
-        if self.game_over:
+        if not hasattr(
+            self,
+            "leaderboard_frame"
+        ):
 
-            self.start_game()
+            return
+
+        for widget in self.leaderboard_frame.winfo_children():
+
+            widget.destroy()
+
+        # ----------------------------------------------------
+        # Last 10 score records
+        # ----------------------------------------------------
+
+        recent = self.session_scores[-10:]
+
+        # Display newest first
+        recent = list(
+            reversed(recent)
+        )
+
+        if not recent:
+
+            empty = tk.Label(
+                self.leaderboard_frame,
+                text="NO SCORES YET\n\nSTART A GAME!",
+                font=(
+                    FONT,
+                    10,
+                    "bold"
+                ),
+                bg=PANEL,
+                fg=TEXT_DIM,
+                justify="center"
+            )
+
+            empty.pack(
+                pady=50
+            )
+
+            return
+
+        for index, result in enumerate(
+            recent,
+            start=1
+        ):
+
+            row = tk.Frame(
+                self.leaderboard_frame,
+                bg=(
+                    PANEL_LIGHT
+                    if index % 2 == 0
+                    else PANEL
+                ),
+                relief="raised",
+                bd=1
+            )
+
+            row.pack(
+                fill="x",
+                pady=2
+            )
+
+            # Rank
+            rank_text = str(index)
+
+            tk.Label(
+                row,
+                text=rank_text,
+                width=6,
+                font=(
+                    FONT,
+                    9,
+                    "bold"
+                ),
+                bg=row["bg"],
+                fg=TEXT_DIM
+            ).pack(
+                side="left"
+            )
+
+            # Name
+            tk.Label(
+                row,
+                text=result["name"][:14],
+                width=16,
+                font=(
+                    FONT,
+                    9,
+                    "bold"
+                ),
+                bg=row["bg"],
+                fg=TEXT
+            ).pack(
+                side="left"
+            )
+
+            # Score
+            tk.Label(
+                row,
+                text=str(
+                    result["score"]
+                ),
+                width=10,
+                font=(
+                    FONT,
+                    9,
+                    "bold"
+                ),
+                bg=row["bg"],
+                fg=ACCENT
+            ).pack(
+                side="left"
+            )
+
+        # Update home high score
+        if hasattr(
+            self,
+            "home_high_score_label"
+        ):
+
+            self.home_high_score_label.config(
+                text=str(
+                    self.high_score
+                )
+            )
+
+    # ========================================================
+    # RESTART AFTER GAME OVER
+    # ========================================================
+
+    def restart_game(self):
+
+        # Reset game but keep player name
+        self.score = 0
+
+        self.lines = 0
+
+        self.level = 1
+
+        self.combo = 0
+
+        self.fall_speed = START_FALL_SPEED
+
+        self.game_over = False
+
+        self.paused = False
+
+        self.countdown_active = False
+
+        self.score_saved = False
+
+        self.board = [
+            [0 for _ in range(COLS)]
+            for _ in range(ROWS)
+        ]
+
+        self.board_colors = [
+            [None for _ in range(COLS)]
+            for _ in range(ROWS)
+        ]
+
+        self.current_block = None
+
+        self.next_block = random.choice(
+            self.shapes
+        )
+
+        self.current_color = random.choice(
+            BLOCK_COLORS
+        )
+
+        self.next_color = random.choice(
+            BLOCK_COLORS
+        )
+
+        self.create_game_screen()
+
+        self.spawn_block()
+
+        self.draw()
+
+        self.start_countdown()
 
 
 # ============================================================
-# START PROGRAM
+# PROGRAM START
 # ============================================================
 
 root = tk.Tk()
