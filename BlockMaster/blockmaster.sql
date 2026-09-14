@@ -1,0 +1,17 @@
+CREATE DATABASE IF NOT EXISTS blockmaster
+CHARACTER SET utf8mb4
+COLLATE utf8mb4_unicode_ci;
+
+USE blockmaster;
+
+CREATE TABLE IF NOT EXISTS game_scores (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    player_name VARCHAR(50) NOT NULL,
+    score INT UNSIGNED NOT NULL DEFAULT 0,
+    level INT UNSIGNED NOT NULL DEFAULT 1,
+    lines INT UNSIGNED NOT NULL DEFAULT 0,
+    played_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    INDEX idx_score (score DESC),
+    INDEX idx_played_at (played_at DESC)
+);
