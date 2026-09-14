@@ -1,1263 +1,648 @@
-
 import tkinter as tk
 import random
+import time
+from clearing import ClearingSystem
 
 
 # ============================================================
-# BLOCKMASTER
-# PHASE 14
-#
-# Features:
-# - 8 x 16 board
-# - Start/Home screen
-# - Player name selection
-# - 3, 2, 1 countdown
-# - Arcade-style pastel UI
-# - 3D-looking blocks
-# - Score
-# - High score
-# - Level
-# - Next shape preview
-# - Progressive speed
-# - 6+ filled cells can trigger clearing
-# - Combo blast
-# - Pause / Resume
-# - Reset
-# - Home
-# - Quit
-#
-# CONTROLS:
-# LEFT      = Move left
-# RIGHT     = Move right
-# UP        = Rotate
-# DOWN      = Rotate
-# SPACE     = Hard drop / Lock
+# BLOCKMASTER - NEON 3D ARCADE
 # ============================================================
 
-
-# ============================================================
-# BOARD SETTINGS
-# ============================================================
-
-ROWS = 16
-COLS = 8
-
-CELL_SIZE = 40
+ROWS = 23
+COLS = 10
+CELL_SIZE = 32
 
 BOARD_WIDTH = COLS * CELL_SIZE
 BOARD_HEIGHT = ROWS * CELL_SIZE
 
+START_SPEED = 1600
+SPEED_STEP = 200
+SPEED_INTERVAL = 20_000
+MIN_SPEED = 300
 
-# ============================================================
-# SPEED SETTINGS
-# ============================================================
+# Speed decreases by 200 ms every 20 seconds.
+# It bottoms out at a playable 300 ms.
+THREE_MINUTES = 180_000
 
-# You said 1000 works well, so we start here.
-START_FALL_SPEED = 1000
+LEVEL_SCORE = 500  # Score required per level; deliberately slower progression
 
-# Speed becomes faster by this amount each level.
-SPEED_STEP = 50
+# Neon arcade palette
+BG = "#171525"
+BG2 = "#211B35"
+PANEL = "#2B2444"
+PANEL2 = "#382E58"
+PANEL3 = "#49386A"
+NEON_CYAN = "#69F6FF"
+NEON_PINK = "#FF67D9"
+NEON_PURPLE = "#B98CFF"
+NEON_GREEN = "#75F7A8"
+NEON_YELLOW = "#FFE66D"
+NEON_RED = "#FF718B"
+WHITE = "#F5F4FF"
+MUTED = "#BDB7D6"
+GRID = "#493F63"
+BOARD_BG = "#12101D"
 
-# The lowest possible delay.
-MIN_FALL_SPEED = 150
-
-
-# ============================================================
-# LEVEL SETTINGS
-# ============================================================
-
-LEVEL_SCORE = 75
-
-
-# ============================================================
-# COLORS
-# ============================================================
-
-BACKGROUND = "#F4F1EA"
-PANEL = "#E8E1D5"
-PANEL_LIGHT = "#F8F5EF"
-
-TEXT = "#4E4A45"
-
-BOARD_BG = "#DDD8CF"
-GRID_COLOR = "#C8C2B8"
-
-BUTTON_BG = "#D7C7E8"
-BUTTON_ACTIVE = "#C7B2DE"
-
-HOME_BG = "#EFE8DF"
-
-# Pastel block colors
 BLOCK_COLORS = [
-    "#A8DADC",   # pastel cyan
-    "#F6BDCC",   # pastel pink
-    "#CDB4DB",   # pastel purple
-    "#BDE0FE",   # pastel blue
-    "#CDE8B5",   # pastel green
-    "#F8D6A0",   # pastel orange
-    "#D8C3A5"    # pastel brown
+    "#42DDF0",  # I
+    "#FFE66D",  # O
+    "#B98CFF",  # T
+    "#FF9A62",  # L
+    "#FF718B",  # J
+    "#75F7A8",  # S
+    "#FF67D9",  # Z
 ]
+
+FONT = "Consolas"
 
 
 class BlockMaster:
-
     def __init__(self, root):
-
         self.root = root
-
-        self.root.title("BlockMaster")
-
-        self.root.geometry("1000x850")
-
-        self.root.resizable(False, False)
-
-        self.root.configure(
-            bg=BACKGROUND
-        )
-
-        # ====================================================
-        # GAME VARIABLES
-        # ====================================================
-
-        self.player_name = ""
-
-        self.score = 0
-
-        self.high_score = 0
-
-        self.level = 1
-
-        self.lines = 0
-
-        self.combo = 0
-
-        self.fall_speed = START_FALL_SPEED
-
-        self.game_over = False
-
-        self.paused = False
-
-        self.countdown_active = False
-
-        self.countdown_value = 0
-
-        # ====================================================
-        # SHAPES
-        # ====================================================
+        self.root.title("BlockMaster - Neon Arcade")
+        self.root.geometry("1100x920")
+        self.root.resizable(True, True)
+        self.root.minsize(900, 760)
+        self.root.configure(bg=BG)
 
         self.shapes = [
-
-            # I
-            [
-                [1, 1, 1, 1]
-            ],
-
-            # O
-            [
-                [1, 1],
-                [1, 1]
-            ],
-
-            # T
-            [
-                [1, 1, 1],
-                [0, 1, 0]
-            ],
-
-            # L
-            [
-                [1, 0],
-                [1, 0],
-                [1, 1]
-            ],
-
-            # J
-            [
-                [0, 1],
-                [0, 1],
-                [1, 1]
-            ],
-
-            # S
-            [
-                [0, 1, 1],
-                [1, 1, 0]
-            ],
-
-            # Z
-            [
-                [1, 1, 0],
-                [0, 1, 1]
-            ]
+            [[1, 1, 1, 1]],                         # I
+            [[1, 1], [1, 1]],                       # O
+            [[1, 1, 1], [0, 1, 0]],                 # T
+            [[1, 0], [1, 0], [1, 1]],               # L
+            [[0, 1], [0, 1], [1, 1]],               # J
+            [[0, 1, 1], [1, 1, 0]],                 # S
+            [[1, 1, 0], [0, 1, 1]],                 # Z
         ]
 
-        # ====================================================
-        # BLOCK COLORS
-        # ====================================================
+        self.shape_names = ["I", "O", "T", "L", "J", "S", "Z"]
 
-        self.current_color = random.choice(
-            BLOCK_COLORS
-        )
+        self.player_name = ""
+        self.score = 0
+        self.high_score = 0
+        self.level = 1
+        self.lines = 0
+        self.combo = 0
 
-        self.next_color = random.choice(
-            BLOCK_COLORS
-        )
+        self.fall_speed = START_SPEED
+        self.game_start_time = None
 
-        # ====================================================
-        # CURRENT / NEXT BLOCK
-        # ====================================================
+        self.game_over = False
+        self.paused = False
+        self.countdown_active = False
+        self.countdown_hidden = False
+        self.score_saved = False
+        self.lock_in_progress = False
+
+        self.menu_window = None
+        self.menu_overlay = None
+        self.fall_job = None
+        self.speed_job = None
+
+        self.session_scores = []
 
         self.current_block = None
+        self.current_shape_index = 0
+        self.current_color = BLOCK_COLORS[0]
 
-        self.next_block = random.choice(
-            self.shapes
-        )
+        self.next_block = random.choice(self.shapes)
+        self.next_shape_index = self.shapes.index(self.next_block)
+        self.next_color = BLOCK_COLORS[self.next_shape_index]
 
-        # ====================================================
-        # BOARD
-        # ====================================================
+        self.block_row = 0
+        self.block_col = 0
 
         self.board = []
-
         self.board_colors = []
 
-        # ====================================================
-        # CREATE HOME SCREEN
-        # ====================================================
+        self.CELL_SIZE = CELL_SIZE
+        self.clearer = ClearingSystem(self)
 
         self.create_home_screen()
 
-    # ========================================================
-    # HOME SCREEN
-    # ========================================================
-
-    def create_home_screen(self):
-
-        self.clear_root()
-
-        self.home_frame = tk.Frame(
-            self.root,
-            bg=HOME_BG,
-            padx=50,
-            pady=40
-        )
-
-        self.home_frame.pack(
-            expand=True
-        )
-
-        # ----------------------------------------------------
-        # TITLE
-        # ----------------------------------------------------
-
-        title_box = tk.Frame(
-            self.home_frame,
-            bg=PANEL,
-            padx=50,
-            pady=25
-        )
-
-        title_box.pack(
-            pady=20
-        )
-
-        title = tk.Label(
-            title_box,
-            text="BLOCKMASTER",
-            font=("Arial", 30, "bold"),
-            bg=PANEL,
-            fg=TEXT
-        )
-
-        title.pack()
-
-        subtitle = tk.Label(
-            title_box,
-            text="ARCADE BLOCK PUZZLE",
-            font=("Arial", 11, "bold"),
-            bg=PANEL,
-            fg=TEXT
-        )
-
-        subtitle.pack(
-            pady=(5, 0)
-        )
-
-        # ----------------------------------------------------
-        # NAME BOX
-        # ----------------------------------------------------
-
-        name_box = tk.Frame(
-            self.home_frame,
-            bg=PANEL,
-            padx=30,
-            pady=25
-        )
-
-        name_box.pack(
-            pady=15
-        )
-
-        name_label = tk.Label(
-            name_box,
-            text="PLAYER NAME",
-            font=("Arial", 12, "bold"),
-            bg=PANEL,
-            fg=TEXT
-        )
-
-        name_label.pack(
-            pady=(0, 10)
-        )
-
-        self.name_entry = tk.Entry(
-            name_box,
-            width=25,
-            font=("Arial", 13),
-            justify="center"
-        )
-
-        self.name_entry.insert(
-            0,
-            "PLAYER"
-        )
-
-        self.name_entry.pack()
-
-        # ----------------------------------------------------
-        # START BUTTON
-        # ----------------------------------------------------
-
-        start_button = tk.Button(
-            self.home_frame,
-            text="START GAME",
-            font=("Arial", 13, "bold"),
-            width=18,
-            height=2,
-            bg=BUTTON_BG,
-            activebackground=BUTTON_ACTIVE,
-            fg=TEXT,
-            relief="flat",
-            command=self.start_game
-        )
-
-        start_button.pack(
-            pady=15
-        )
-
-        # ----------------------------------------------------
-        # QUIT BUTTON
-        # ----------------------------------------------------
-
-        quit_button = tk.Button(
-            self.home_frame,
-            text="QUIT",
-            font=("Arial", 11, "bold"),
-            width=18,
-            bg=PANEL,
-            activebackground=BUTTON_ACTIVE,
-            fg=TEXT,
-            relief="flat",
-            command=self.root.destroy
-        )
-
-        quit_button.pack(
-            pady=5
-        )
-
-        # ----------------------------------------------------
-        # INSTRUCTIONS
-        # ----------------------------------------------------
-
-        instruction_box = tk.Frame(
-            self.home_frame,
-            bg=PANEL_LIGHT,
-            padx=25,
-            pady=15
-        )
-
-        instruction_box.pack(
-            pady=20
-        )
-
-        instruction = tk.Label(
-            instruction_box,
-            text=(
-                "← →  MOVE\n"
-                "↑ ↓  ROTATE\n"
-                "SPACE  DROP"
-            ),
-            font=("Arial", 10),
-            bg=PANEL_LIGHT,
-            fg=TEXT,
-            justify="center"
-        )
-
-        instruction.pack()
-
-        self.name_entry.focus()
-
-        self.root.bind(
-            "<Return>",
-            lambda event: self.start_game()
-        )
-
-    # ========================================================
-    # CLEAR ROOT
-    # ========================================================
+    # --------------------------------------------------------
+    # GENERAL UI
+    # --------------------------------------------------------
 
     def clear_root(self):
-
         for widget in self.root.winfo_children():
-
             widget.destroy()
 
-    # ========================================================
-    # START GAME
-    # ========================================================
+    def frame3d(self, parent, bg=PANEL, padx=12, pady=12):
+        return tk.Frame(
+            parent,
+            bg=bg,
+            padx=padx,
+            pady=pady,
+            relief="raised",
+            bd=5,
+            highlightthickness=2,
+            highlightbackground=PANEL3,
+        )
 
-    def start_game(self):
+    def button3d(self, parent, text, command, width=18):
+        return tk.Button(
+            parent,
+            text=text,
+            command=command,
+            width=width,
+            height=2,
+            font=(FONT, 10, "bold"),
+            bg=PANEL2,
+            fg=WHITE,
+            activebackground=NEON_PURPLE,
+            activeforeground=BG,
+            relief="raised",
+            bd=5,
+            cursor="hand2",
+        )
 
-        name = self.name_entry.get().strip()
+    # --------------------------------------------------------
+    # HOME
+    # --------------------------------------------------------
 
-        if name == "":
+    def create_home_screen(self):
+        self.cancel_jobs()
+        self.close_menu()
+        self.clear_root()
 
-            name = "PLAYER"
+        root_box = tk.Frame(self.root, bg=BG)
+        root_box.pack(fill="both", expand=True, padx=28, pady=24)
 
-        self.player_name = name
+        title = self.frame3d(root_box, BG2, 25, 18)
+        title.pack(fill="x", pady=(0, 18))
+
+        tk.Label(
+            title,
+            text="B L O C K M A S T E R",
+            font=(FONT, 28, "bold"),
+            bg=BG2,
+            fg=NEON_CYAN,
+        ).pack()
+
+        tk.Label(
+            title,
+            text="N E O N   A R C A D E",
+            font=(FONT, 10, "bold"),
+            bg=BG2,
+            fg=NEON_PINK,
+        ).pack(pady=(5, 0))
+
+        content = tk.Frame(root_box, bg=BG)
+        content.pack(fill="both", expand=True)
+
+        # LEFT
+        left = tk.Frame(content, bg=BG)
+        left.pack(side="left", fill="y", padx=(0, 16))
+
+        player_box = self.frame3d(left, PANEL)
+        player_box.pack(fill="x", pady=6)
+
+        tk.Label(
+            player_box,
+            text="ENTER PLAYER",
+            font=(FONT, 10, "bold"),
+            bg=PANEL,
+            fg=NEON_CYAN,
+        ).pack()
+
+        self.name_entry = tk.Entry(
+            player_box,
+            width=22,
+            font=(FONT, 13, "bold"),
+            justify="center",
+            bg=BOARD_BG,
+            fg=WHITE,
+            insertbackground=NEON_CYAN,
+            relief="sunken",
+            bd=5,
+        )
+        self.name_entry.insert(0, "PLAYER")
+        self.name_entry.pack(pady=12, ipady=8)
+
+        start = self.button3d(left, "▶  START GAME", self.start_game, 22)
+        start.pack(fill="x", pady=8)
+
+        controls = self.frame3d(left, BG2)
+        controls.pack(fill="x", pady=6)
+
+        tk.Label(
+            controls,
+            text="CONTROLS",
+            font=(FONT, 11, "bold"),
+            bg=BG2,
+            fg=NEON_PINK,
+        ).pack(pady=(0, 8))
+
+        tk.Label(
+            controls,
+            text="← →   MOVE\n↑ ↓   ROTATE\nSPACE   HARD DROP\n\n9+ FILLED CELLS = ROW CLEAR\nSPECIAL SHAPES = BLASTS",
+            font=(FONT, 9, "bold"),
+            bg=BG2,
+            fg=MUTED,
+            justify="center",
+        ).pack()
+
+        # RIGHT
+        right = tk.Frame(content, bg=BG)
+        right.pack(side="left", fill="both", expand=True)
+
+        board_info = self.frame3d(right, PANEL)
+        board_info.pack(fill="both", expand=True)
+
+        tk.Label(
+            board_info,
+            text="🏆  SESSION LEADERBOARD",
+            font=(FONT, 13, "bold"),
+            bg=PANEL,
+            fg=NEON_YELLOW,
+        ).pack(pady=(0, 10))
+
+        header = tk.Frame(board_info, bg=PANEL3, relief="raised", bd=3)
+        header.pack(fill="x")
+
+        for text, width in [("RANK", 7), ("PLAYER", 18), ("SCORE", 10)]:
+            tk.Label(
+                header,
+                text=text,
+                width=width,
+                font=(FONT, 9, "bold"),
+                bg=PANEL3,
+                fg=WHITE,
+            ).pack(side="left")
+
+        self.leaderboard_frame = tk.Frame(board_info, bg=PANEL)
+        self.leaderboard_frame.pack(fill="both", expand=True, pady=6)
+
+        self.refresh_leaderboard()
+
+        high = self.frame3d(right, BG2)
+        high.pack(fill="x", pady=6)
+
+        tk.Label(
+            high,
+            text="👑 ALL-TIME SESSION HIGH SCORE",
+            font=(FONT, 9, "bold"),
+            bg=BG2,
+            fg=MUTED,
+        ).pack()
+
+        self.home_high_label = tk.Label(
+            high,
+            text=str(self.high_score),
+            font=(FONT, 25, "bold"),
+            bg=BG2,
+            fg=NEON_CYAN,
+        )
+        self.home_high_label.pack(pady=4)
+
+        tk.Label(
+            root_box,
+            text="NEON ARCADE EDITION  •  10 × 23 BOARD",
+            font=(FONT, 8, "bold"),
+            bg=BG,
+            fg=MUTED,
+        ).pack(pady=7)
+
+        self.name_entry.focus_set()
+        self.root.bind("<Return>", lambda e: self.start_game())
+
+    # --------------------------------------------------------
+    # START / RESET
+    # --------------------------------------------------------
+
+    def reset_state(self):
+        self.close_menu()
+        self.cancel_jobs()
+        if getattr(self, "game_over_window", None):
+            try:
+                if self.game_over_window.winfo_exists():
+                    self.game_over_window.grab_release()
+                    self.game_over_window.destroy()
+            except tk.TclError:
+                pass
+            self.game_over_window = None
 
         self.score = 0
-
         self.lines = 0
-
         self.level = 1
-
         self.combo = 0
-
-        self.fall_speed = START_FALL_SPEED
+        self.fall_speed = START_SPEED
 
         self.game_over = False
-
         self.paused = False
+        self.countdown_active = False
+        self.countdown_hidden = False
+        self.score_saved = False
+        self.lock_in_progress = False
 
-        self.board = [
-            [0 for _ in range(COLS)]
-            for _ in range(ROWS)
-        ]
-
-        self.board_colors = [
-            [None for _ in range(COLS)]
-            for _ in range(ROWS)
-        ]
+        self.board = [[0 for _ in range(COLS)] for _ in range(ROWS)]
+        self.board_colors = [[None for _ in range(COLS)] for _ in range(ROWS)]
 
         self.current_block = None
+        self.next_block = random.choice(self.shapes)
+        self.next_shape_index = self.shapes.index(self.next_block)
+        self.next_color = BLOCK_COLORS[self.next_shape_index]
 
-        self.next_block = random.choice(
-            self.shapes
-        )
+    def start_game(self):
+        name = self.name_entry.get().strip()
+        self.player_name = name.upper() if name else "PLAYER"
 
-        self.current_color = random.choice(
-            BLOCK_COLORS
-        )
-
-        self.next_color = random.choice(
-            BLOCK_COLORS
-        )
-
+        self.reset_state()
         self.create_game_screen()
 
         self.spawn_block()
+        if self.game_over:
+            self.draw()
+            return
 
+        # Hide the active piece during the countdown.
+        self.countdown_hidden = True
         self.draw()
-
         self.start_countdown()
 
-    # ========================================================
+    def reset_current_game(self):
+        if not hasattr(self, "name_entry"):
+            self.player_name = self.player_name or "PLAYER"
+
+        self.reset_state()
+        self.create_game_screen()
+        self.spawn_block()
+        self.draw()
+
+        if not self.game_over:
+            self.start_countdown()
+
+    # --------------------------------------------------------
     # GAME SCREEN
-    # ========================================================
+    # --------------------------------------------------------
 
     def create_game_screen(self):
-
+        self.close_menu()
         self.clear_root()
 
-        self.game_container = tk.Frame(
-            self.root,
-            bg=BACKGROUND,
-            padx=25,
-            pady=20
-        )
+        top = tk.Frame(self.root, bg=BG)
+        top.pack(fill="x", padx=18, pady=(12, 8))
 
-        self.game_container.pack(
-            expand=True
-        )
+        player = self.frame3d(top, BG2, 14, 8)
+        player.pack(side="left", fill="x", expand=True, padx=(0, 8))
 
-        # ====================================================
-        # TOP PLAYER DISPLAY
-        # ====================================================
+        tk.Label(
+            player,
+            text=self.player_name,
+            font=(FONT, 13, "bold"),
+            bg=BG2,
+            fg=NEON_CYAN,
+        ).pack()
 
-        self.player_box = tk.Frame(
-            self.game_container,
-            bg=PANEL,
-            padx=25,
-            pady=10
-        )
+        self.menu_button = self.button3d(top, "☰  MENU", self.toggle_menu, 12)
+        self.menu_button.pack(side="left")
 
-        self.player_box.pack(
-            pady=(0, 15)
-        )
+        game_area = tk.Frame(self.root, bg=BG)
+        game_area.pack(fill="both", expand=True, padx=18, pady=4)
 
-        self.player_label = tk.Label(
-            self.player_box,
-            text=f"PLAYER: {self.player_name}",
-            font=("Arial", 17, "bold"),
-            bg=PANEL,
-            fg=TEXT
-        )
+        # Center the board by using a fixed left spacer.
+        spacer = tk.Frame(game_area, bg=BG, width=180)
+        spacer.pack(side="left", fill="y")
+        spacer.pack_propagate(False)
 
-        self.player_label.pack()
-
-        # ====================================================
-        # MAIN GAME AREA
-        # ====================================================
-
-        self.main_game_area = tk.Frame(
-            self.game_container,
-            bg=BACKGROUND
-        )
-
-        self.main_game_area.pack()
-
-        # ====================================================
-        # BOARD BOX
-        # ====================================================
-
-        self.board_box = tk.Frame(
-            self.main_game_area,
-            bg=PANEL,
-            padx=15,
-            pady=15
-        )
-
-        self.board_box.pack(
-            side="left",
-            padx=15
-        )
-
-        # ====================================================
-        # CANVAS
-        # ====================================================
+        board_box = self.frame3d(game_area, BG2, 9, 9)
+        board_box.pack(side="left", anchor="n")
 
         self.canvas = tk.Canvas(
-            self.board_box,
+            board_box,
             width=BOARD_WIDTH,
             height=BOARD_HEIGHT,
             bg=BOARD_BG,
-            highlightthickness=2,
-            highlightbackground=GRID_COLOR
+            highlightthickness=3,
+            highlightbackground=NEON_PURPLE,
         )
-
         self.canvas.pack()
 
-        # ====================================================
-        # SIDE PANEL
-        # ====================================================
+        side = tk.Frame(game_area, bg=BG, width=250)
+        side.pack(side="left", fill="y", padx=(18, 0))
+        side.pack_propagate(False)
 
-        self.side_panel = tk.Frame(
-            self.main_game_area,
-            bg=BACKGROUND,
-            width=230
-        )
+        self.score_value = self.make_stat(side, "SCORE", "0")
+        self.high_value = self.make_stat(side, "HIGH SCORE", str(self.high_score))
+        self.level_value = self.make_stat(side, "LEVEL", "1")
 
-        self.side_panel.pack(
-            side="left",
-            padx=15,
-            anchor="n"
-        )
+        next_box = self.frame3d(side, PANEL)
+        next_box.pack(fill="x", pady=6)
 
-        # ====================================================
-        # SCORE BOX
-        # ====================================================
-
-        self.score_box = self.create_stat_box(
-            self.side_panel,
-            "SCORE",
-            "0"
-        )
-
-        self.score_box.pack(
-            pady=7
-        )
-
-        self.score_value = self.score_box.value_label
-
-        # ====================================================
-        # HIGH SCORE BOX
-        # ====================================================
-
-        self.high_score_box = self.create_stat_box(
-            self.side_panel,
-            "HIGH SCORE",
-            "0"
-        )
-
-        self.high_score_box.pack(
-            pady=7
-        )
-
-        self.high_score_value = (
-            self.high_score_box.value_label
-        )
-
-        # ====================================================
-        # LEVEL BOX
-        # ====================================================
-
-        self.level_box = self.create_stat_box(
-            self.side_panel,
-            "LEVEL",
-            "1"
-        )
-
-        self.level_box.pack(
-            pady=7
-        )
-
-        self.level_value = (
-            self.level_box.value_label
-        )
-
-        # ====================================================
-        # NEXT BOX
-        # ====================================================
-
-        self.next_box = tk.Frame(
-            self.side_panel,
+        tk.Label(
+            next_box,
+            text="NEXT BLOCK",
+            font=(FONT, 10, "bold"),
             bg=PANEL,
-            padx=15,
-            pady=15
-        )
-
-        self.next_box.pack(
-            pady=15
-        )
-
-        next_title = tk.Label(
-            self.next_box,
-            text="NEXT",
-            font=("Arial", 12, "bold"),
-            bg=PANEL,
-            fg=TEXT
-        )
-
-        next_title.pack(
-            pady=(0, 8)
-        )
+            fg=NEON_PINK,
+        ).pack(pady=(0, 7))
 
         self.next_canvas = tk.Canvas(
-            self.next_box,
-            width=150,
-            height=120,
-            bg=PANEL_LIGHT,
-            highlightthickness=1,
-            highlightbackground=GRID_COLOR
+            next_box,
+            width=190,
+            height=115,
+            bg=BOARD_BG,
+            highlightthickness=2,
+            highlightbackground=PANEL3,
         )
-
         self.next_canvas.pack()
 
-        # ====================================================
-        # MENU BUTTON
-        # ====================================================
+        combo_box = self.frame3d(side, BG2)
+        combo_box.pack(fill="x", pady=6)
 
-        self.menu_button = tk.Button(
-            self.side_panel,
-            text="MENU",
-            font=("Arial", 11, "bold"),
-            width=16,
-            height=2,
-            bg=BUTTON_BG,
-            activebackground=BUTTON_ACTIVE,
-            fg=TEXT,
-            relief="flat",
-            command=self.open_menu
+        tk.Label(
+            combo_box,
+            text="COMBO",
+            font=(FONT, 9, "bold"),
+            bg=BG2,
+            fg=MUTED,
+        ).pack()
+
+        self.combo_value = tk.Label(
+            combo_box,
+            text="x0",
+            font=(FONT, 20, "bold"),
+            bg=BG2,
+            fg=NEON_YELLOW,
         )
+        self.combo_value.pack()
 
-        self.menu_button.pack(
-            pady=15
-        )
+        tk.Label(
+            self.root,
+            text="← → MOVE     ↑ ↓ ROTATE     SPACE HARD DROP",
+            font=(FONT, 9, "bold"),
+            bg=BG,
+            fg=MUTED,
+        ).pack(pady=7)
 
-        # ====================================================
-        # KEYBOARD
-        # ====================================================
+        self.root.bind("<Left>", self.move_left)
+        self.root.bind("<Right>", self.move_right)
+        self.root.bind("<Up>", self.rotate_block)
+        self.root.bind("<Down>", self.rotate_block)
+        self.root.bind("<space>", self.hard_drop)
 
-        self.root.bind(
-            "<Left>",
-            self.move_left
-        )
+    def make_stat(self, parent, title, value):
+        box = self.frame3d(parent, PANEL)
+        box.pack(fill="x", pady=5)
 
-        self.root.bind(
-            "<Right>",
-            self.move_right
-        )
-
-        self.root.bind(
-            "<Up>",
-            self.rotate_block
-        )
-
-        self.root.bind(
-            "<Down>",
-            self.rotate_block
-        )
-
-        self.root.bind(
-            "<space>",
-            self.hard_drop
-        )
-
-    # ========================================================
-    # STAT BOX
-    # ========================================================
-
-    def create_stat_box(
-        self,
-        parent,
-        title,
-        value
-    ):
-
-        box = tk.Frame(
-            parent,
-            bg=PANEL,
-            width=210,
-            padx=20,
-            pady=12
-        )
-
-        title_label = tk.Label(
+        tk.Label(
             box,
             text=title,
-            font=("Arial", 10, "bold"),
+            font=(FONT, 8, "bold"),
             bg=PANEL,
-            fg=TEXT
-        )
-
-        title_label.pack()
+            fg=MUTED,
+        ).pack()
 
         value_label = tk.Label(
             box,
             text=value,
-            font=("Arial", 18, "bold"),
+            font=(FONT, 19, "bold"),
             bg=PANEL,
-            fg=TEXT
+            fg=NEON_CYAN,
         )
+        value_label.pack(pady=3)
 
-        value_label.pack(
-            pady=(3, 0)
-        )
+        return value_label
 
-        box.value_label = value_label
-
-        return box
-
-    # ========================================================
+    # --------------------------------------------------------
     # COUNTDOWN
-    # ========================================================
+    # --------------------------------------------------------
 
     def start_countdown(self):
-
         self.countdown_active = True
-
         self.countdown_value = 3
-
         self.show_countdown()
 
-    # ========================================================
-    # SHOW COUNTDOWN
-    # ========================================================
-
     def show_countdown(self):
-
-        if not self.countdown_active:
-
+        if not self.countdown_active or self.game_over:
             return
 
         self.draw()
 
-        center_x = BOARD_WIDTH / 2
+        cx = BOARD_WIDTH / 2
+        cy = BOARD_HEIGHT / 2
 
-        center_y = BOARD_HEIGHT / 2
-
-        # Background box
         self.canvas.create_rectangle(
-            center_x - 100,
-            center_y - 80,
-            center_x + 100,
-            center_y + 80,
-            fill=PANEL,
-            outline=GRID_COLOR,
-            width=2
+            cx - 125, cy - 90,
+            cx + 125, cy + 90,
+            fill=BG2,
+            outline=NEON_CYAN,
+            width=5,
         )
 
         if self.countdown_value > 0:
-
-            self.canvas.create_text(
-                center_x,
-                center_y,
-                text=str(
-                    self.countdown_value
-                ),
-                font=("Arial", 60, "bold"),
-                fill=TEXT
-            )
-
+            text = str(self.countdown_value)
             self.countdown_value -= 1
-
-            self.root.after(
-                700,
-                self.show_countdown
-            )
-
+            delay = 700
         else:
+            text = "GO!"
+            delay = 450
 
-            self.canvas.create_text(
-                center_x,
-                center_y,
-                text="GO!",
-                font=("Arial", 42, "bold"),
-                fill=TEXT
-            )
+        self.canvas.create_text(
+            cx,
+            cy,
+            text=text,
+            font=(FONT, 58 if text != "GO!" else 38, "bold"),
+            fill=NEON_PINK if text != "GO!" else NEON_GREEN,
+        )
 
-            self.root.after(
-                500,
-                self.finish_countdown
-            )
-
-    # ========================================================
-    # FINISH COUNTDOWN
-    # ========================================================
+        if text == "GO!":
+            self.root.after(delay, self.finish_countdown)
+        else:
+            self.root.after(delay, self.show_countdown)
 
     def finish_countdown(self):
-
         self.countdown_active = False
-
+        self.countdown_hidden = False
+        self.game_start_time = time.monotonic()
+        self.start_speed_timer()
         self.draw()
+        self.schedule_fall()
 
-        self.fall()
+    # --------------------------------------------------------
+    # SPEED
+    # --------------------------------------------------------
 
-    # ========================================================
-    # SPAWN BLOCK
-    # ========================================================
+    def start_speed_timer(self):
+        if self.speed_job:
+            self.root.after_cancel(self.speed_job)
+        self.speed_job = self.root.after(250, self.update_time_speed)
+
+    def update_time_speed(self):
+        if self.game_over:
+            return
+
+        if not self.paused and not self.countdown_active and self.game_start_time:
+            elapsed_ms = int((time.monotonic() - self.game_start_time) * 1000)
+
+            steps = elapsed_ms // SPEED_INTERVAL
+            self.fall_speed = max(
+                MIN_SPEED,
+                START_SPEED - steps * SPEED_STEP
+            )
+
+        self.speed_job = self.root.after(250, self.update_time_speed)
+
+    def schedule_fall(self):
+        if self.fall_job:
+            self.root.after_cancel(self.fall_job)
+
+        if not self.game_over and not self.paused and not self.countdown_active:
+            self.fall_job = self.root.after(self.fall_speed, self.fall)
+
+    # --------------------------------------------------------
+    # SPAWN
+    # --------------------------------------------------------
 
     def spawn_block(self):
-
         if self.current_block is None:
-
-            self.current_block = random.choice(
-                self.shapes
-            )
-
-            self.current_color = random.choice(
-                BLOCK_COLORS
-            )
-
+            self.current_block = random.choice(self.shapes)
+            self.current_shape_index = self.shapes.index(self.current_block)
+            self.current_color = BLOCK_COLORS[self.current_shape_index]
         else:
-
-            self.current_block = self.next_block
-
+            self.current_block = [row[:] for row in self.next_block]
+            self.current_shape_index = self.next_shape_index
             self.current_color = self.next_color
 
-        self.next_block = random.choice(
-            self.shapes
-        )
-
-        self.next_color = random.choice(
-            BLOCK_COLORS
-        )
+        self.next_block = random.choice(self.shapes)
+        self.next_shape_index = self.shapes.index(self.next_block)
+        self.next_color = BLOCK_COLORS[self.next_shape_index]
 
         self.block_row = 0
-
-        block_width = len(
-            self.current_block[0]
-        )
-
-        self.block_col = (
-            COLS - block_width
-        ) // 2
+        self.block_col = (COLS - len(self.current_block[0])) // 2
 
         if not self.can_place(
             self.current_block,
             self.block_row,
             self.block_col
         ):
-
             self.game_over = True
+            self.save_finished_game()
 
-    # ========================================================
-    # DRAW BOARD
-    # ========================================================
+    # --------------------------------------------------------
+    # COLLISION / MOVEMENT
+    # --------------------------------------------------------
 
-    def draw(self):
+    def can_place(self, block, row, col):
+        for r, line in enumerate(block):
+            for c, value in enumerate(line):
+                if not value:
+                    continue
 
-        self.canvas.delete("all")
+                br = row + r
+                bc = col + c
 
-        # ----------------------------------------------------
-        # GRID
-        # ----------------------------------------------------
+                if br < 0 or br >= ROWS or bc < 0 or bc >= COLS:
+                    return False
 
-        for row in range(ROWS):
-
-            for col in range(COLS):
-
-                x1 = col * CELL_SIZE
-                y1 = row * CELL_SIZE
-
-                x2 = x1 + CELL_SIZE
-                y2 = y1 + CELL_SIZE
-
-                self.canvas.create_rectangle(
-                    x1,
-                    y1,
-                    x2,
-                    y2,
-                    fill=BOARD_BG,
-                    outline=GRID_COLOR
-                )
-
-        # ----------------------------------------------------
-        # LOCKED BLOCKS
-        # ----------------------------------------------------
-
-        for row in range(ROWS):
-
-            for col in range(COLS):
-
-                if self.board[row][col] == 1:
-
-                    color = self.board_colors[
-                        row
-                    ][
-                        col
-                    ]
-
-                    self.draw_3d_block(
-                        col * CELL_SIZE,
-                        row * CELL_SIZE,
-                        color
-                    )
-
-        # ----------------------------------------------------
-        # CURRENT BLOCK
-        # ----------------------------------------------------
-
-        if (
-            self.current_block is not None
-            and not self.game_over
-            and not self.paused
-            and not self.countdown_active
-        ):
-
-            for r in range(
-                len(self.current_block)
-            ):
-
-                for c in range(
-                    len(self.current_block[r])
-                ):
-
-                    if self.current_block[r][c] == 1:
-
-                        x = (
-                            self.block_col + c
-                        ) * CELL_SIZE
-
-                        y = (
-                            self.block_row + r
-                        ) * CELL_SIZE
-
-                        self.draw_3d_block(
-                            x,
-                            y,
-                            self.current_color
-                        )
-
-        # ----------------------------------------------------
-        # NEXT
-        # ----------------------------------------------------
-
-        if hasattr(
-            self,
-            "next_canvas"
-        ):
-
-            self.draw_next_shape()
-
-        # ----------------------------------------------------
-        # GAME OVER
-        # ----------------------------------------------------
-
-        if self.game_over:
-
-            center_x = BOARD_WIDTH / 2
-            center_y = BOARD_HEIGHT / 2
-
-            self.canvas.create_rectangle(
-                center_x - 130,
-                center_y - 90,
-                center_x + 130,
-                center_y + 90,
-                fill=PANEL,
-                outline=GRID_COLOR,
-                width=2
-            )
-
-            self.canvas.create_text(
-                center_x,
-                center_y - 30,
-                text="GAME OVER",
-                font=("Arial", 25, "bold"),
-                fill=TEXT
-            )
-
-            self.canvas.create_text(
-                center_x,
-                center_y + 20,
-                text="Press R to Restart",
-                font=("Arial", 11),
-                fill=TEXT
-            )
-
-        # ----------------------------------------------------
-        # PAUSED
-        # ----------------------------------------------------
-
-        if self.paused:
-
-            center_x = BOARD_WIDTH / 2
-            center_y = BOARD_HEIGHT / 2
-
-            self.canvas.create_rectangle(
-                center_x - 110,
-                center_y - 65,
-                center_x + 110,
-                center_y + 65,
-                fill=PANEL,
-                outline=GRID_COLOR,
-                width=2
-            )
-
-            self.canvas.create_text(
-                center_x,
-                center_y,
-                text="PAUSED",
-                font=("Arial", 25, "bold"),
-                fill=TEXT
-            )
-
-        # ----------------------------------------------------
-        # UPDATE SIDE PANEL
-        # ----------------------------------------------------
-
-        if hasattr(
-            self,
-            "score_value"
-        ):
-
-            self.score_value.config(
-                text=str(self.score)
-            )
-
-            self.high_score_value.config(
-                text=str(self.high_score)
-            )
-
-            self.level_value.config(
-                text=str(self.level)
-            )
-
-    # ========================================================
-    # 3D BLOCK
-    # ========================================================
-
-    def draw_3d_block(
-        self,
-        x,
-        y,
-        color
-    ):
-
-        # Main body
-        self.canvas.create_rectangle(
-            x + 2,
-            y + 2,
-            x + CELL_SIZE - 2,
-            y + CELL_SIZE - 2,
-            fill=color,
-            outline=TEXT
-        )
-
-        # Top highlight
-        self.canvas.create_polygon(
-            x + 3,
-            y + 3,
-            x + CELL_SIZE - 3,
-            y + 3,
-            x + CELL_SIZE - 7,
-            y + 7,
-            x + 7,
-            y + 7,
-            fill="#FFFFFF",
-            outline=""
-        )
-
-        # Left highlight
-        self.canvas.create_polygon(
-            x + 3,
-            y + 3,
-            x + 7,
-            y + 7,
-            x + 7,
-            y + CELL_SIZE - 7,
-            x + 3,
-            y + CELL_SIZE - 3,
-            fill="#FFFFFF",
-            outline=""
-        )
-
-        # Bottom shadow
-        self.canvas.create_polygon(
-            x + 3,
-            y + CELL_SIZE - 3,
-            x + CELL_SIZE - 3,
-            y + CELL_SIZE - 3,
-            x + CELL_SIZE - 7,
-            y + CELL_SIZE - 7,
-            x + 7,
-            y + CELL_SIZE - 7,
-            fill="#B8B1A8",
-            outline=""
-        )
-
-    # ========================================================
-    # NEXT SHAPE
-    # ========================================================
-
-    def draw_next_shape(self):
-
-        self.next_canvas.delete("all")
-
-        block = self.next_block
-
-        cell = 25
-
-        rows = len(block)
-        cols = len(block[0])
-
-        width = cols * cell
-        height = rows * cell
-
-        start_x = (
-            150 - width
-        ) / 2
-
-        start_y = (
-            120 - height
-        ) / 2
-
-        for r in range(rows):
-
-            for c in range(cols):
-
-                if block[r][c] == 1:
-
-                    x = (
-                        start_x
-                        + c * cell
-                    )
-
-                    y = (
-                        start_y
-                        + r * cell
-                    )
-
-                    # Simple 3D preview
-                    self.next_canvas.create_rectangle(
-                        x + 2,
-                        y + 2,
-                        x + cell - 2,
-                        y + cell - 2,
-                        fill=self.next_color,
-                        outline=TEXT
-                    )
-
-                    self.next_canvas.create_line(
-                        x + 4,
-                        y + 4,
-                        x + cell - 5,
-                        y + 4,
-                        fill="white",
-                        width=2
-                    )
-
-    # ========================================================
-    # CAN PLACE
-    # ========================================================
-
-    def can_place(
-        self,
-        block,
-        row,
-        col
-    ):
-
-        for r in range(
-            len(block)
-        ):
-
-            for c in range(
-                len(block[r])
-            ):
-
-                if block[r][c] == 1:
-
-                    board_row = row + r
-                    board_col = col + c
-
-                    if board_row < 0:
-                        return False
-
-                    if board_row >= ROWS:
-                        return False
-
-                    if board_col < 0:
-                        return False
-
-                    if board_col >= COLS:
-                        return False
-
-                    if self.board[
-                        board_row
-                    ][
-                        board_col
-                    ] == 1:
-
-                        return False
+                if self.board[br][bc]:
+                    return False
 
         return True
 
-    # ========================================================
-    # MOVE
-    # ========================================================
-
-    def move_left(
-        self,
-        event=None
-    ):
-
-        if (
-            self.game_over
-            or self.paused
-            or self.countdown_active
-        ):
+    def move_left(self, event=None):
+        if self.blocked_input():
             return
 
         if self.can_place(
@@ -1265,23 +650,12 @@ class BlockMaster:
             self.block_row,
             self.block_col - 1
         ):
-
             self.block_col -= 1
 
         self.draw()
 
-    # ========================================================
-
-    def move_right(
-        self,
-        event=None
-    ):
-
-        if (
-            self.game_over
-            or self.paused
-            or self.countdown_active
-        ):
+    def move_right(self, event=None):
+        if self.blocked_input():
             return
 
         if self.can_place(
@@ -1289,437 +663,156 @@ class BlockMaster:
             self.block_row,
             self.block_col + 1
         ):
-
             self.block_col += 1
 
         self.draw()
 
-    # ========================================================
-    # ROTATE
-    # ========================================================
-
-    def rotate_matrix(
-        self,
-        block
-    ):
-
-        return [
-            list(row)
-            for row in zip(
-                *block[::-1]
-            )
-        ]
-
-    def rotate_block(
-        self,
-        event=None
-    ):
-
-        if (
+    def blocked_input(self):
+        return (
             self.game_over
             or self.paused
             or self.countdown_active
-        ):
-            return
-
-        rotated = self.rotate_matrix(
-            self.current_block
+            or self.lock_in_progress
+            or self.current_block is None
         )
 
-        if self.can_place(
-            rotated,
-            self.block_row,
-            self.block_col
-        ):
+    # --------------------------------------------------------
+    # ROTATION
+    # --------------------------------------------------------
 
-            self.current_block = rotated
+    def rotate_matrix(self, block):
+        return [list(row) for row in zip(*block[::-1])]
+
+    def rotate_block(self, event=None):
+        if self.blocked_input():
+            return
+
+        rotated = self.rotate_matrix(self.current_block)
+
+        # Simple wall-kick attempts.
+        for offset in (0, -1, 1, -2, 2):
+            if self.can_place(
+                rotated,
+                self.block_row,
+                self.block_col + offset
+            ):
+                self.current_block = rotated
+                self.block_col += offset
+                break
 
         self.draw()
 
-    # ========================================================
-    # LOCK BLOCK
-    # ========================================================
+    # --------------------------------------------------------
+    # LOCK / CLEAR
+    # --------------------------------------------------------
 
     def lock_block(self):
-
         cells = 0
 
-        for r in range(
-            len(self.current_block)
-        ):
+        for r, line in enumerate(self.current_block):
+            for c, value in enumerate(line):
+                if value:
+                    br = self.block_row + r
+                    bc = self.block_col + c
 
-            for c in range(
-                len(self.current_block[r])
-            ):
-
-                if self.current_block[r][c] == 1:
-
-                    board_row = (
-                        self.block_row + r
-                    )
-
-                    board_col = (
-                        self.block_col + c
-                    )
-
-                    if (
-                        board_row >= 0
-                        and board_row < ROWS
-                        and board_col >= 0
-                        and board_col < COLS
-                    ):
-
-                        self.board[
-                            board_row
-                        ][
-                            board_col
-                        ] = 1
-
-                        self.board_colors[
-                            board_row
-                        ][
-                            board_col
-                        ] = self.current_color
-
+                    if 0 <= br < ROWS and 0 <= bc < COLS:
+                        self.board[br][bc] = 1
+                        self.board_colors[br][bc] = self.current_color
                         cells += 1
 
-        # Placement score
+        # Small placement reward; the main score comes from
+        # clears, combos, and special combinations.
         self.score += cells
-
         self.update_level()
 
-    # ========================================================
-    # ARCADE CLEAR
-    # ========================================================
-
-    def arcade_clear(self):
-
-        qualifying_rows = []
-
-        # ----------------------------------------------------
-        # NEW REQUIREMENT:
-        #
-        # 6 OR MORE OCCUPIED CELLS = CLEAR
-        # ----------------------------------------------------
-
-        for row in range(ROWS):
-
-            filled = sum(
-                self.board[row]
-            )
-
-            if filled >= 6:
-
-                qualifying_rows.append(
-                    row
-                )
-
-        # ----------------------------------------------------
-        # No qualifying rows
-        # ----------------------------------------------------
-
-        if not qualifying_rows:
-
-            self.combo = 0
-
+    def process_lock(self):
+        # HARD GUARD: only one lock may be processed at a time.
+        # This prevents an animation/fall callback from spawning
+        # two pieces and apparently skipping the next shape.
+        if self.lock_in_progress or self.game_over:
             return
 
-        # ----------------------------------------------------
-        # Combo
-        # ----------------------------------------------------
+        self.lock_in_progress = True
 
-        self.combo += 1
+        # Cancel any already scheduled fall callback. Hard-drop and
+        # automatic fall must never be allowed to call process_lock
+        # again while the current clear animation is running.
+        if self.fall_job:
+            try:
+                self.root.after_cancel(self.fall_job)
+            except tk.TclError:
+                pass
+            self.fall_job = None
 
-        self.lines += len(
-            qualifying_rows
+        # Snapshot the current piece BEFORE any board effect.
+        locked_shape_index = self.current_shape_index
+        locked_row = self.block_row
+        locked_col = self.block_col
+        locked_block = [row[:] for row in self.current_block]
+
+        self.lock_block()
+
+        # Hide the old active piece while the clearing system resolves.
+        self.current_block = None
+        self.draw()
+
+        result = self.clearer.resolve(
+            locked_shape_index,
+            locked_row,
+            locked_col,
+            locked_block,
         )
 
-        # ----------------------------------------------------
-        # Determine strongest row
-        # ----------------------------------------------------
+        if result["cleared"]:
+            self.lines += result.get("rows", 0)
+            self.combo += 1
 
-        strongest = 0
+            combo_bonus = self.combo * 35
+            earned = result["score"] + combo_bonus
+            self.score += earned
 
-        for row in qualifying_rows:
-
-            filled = sum(
-                self.board[row]
-            )
-
-            if filled > strongest:
-
-                strongest = filled
-
-        # ----------------------------------------------------
-        # Determine neighboring rows
-        # ----------------------------------------------------
-
-        neighbor_rows = set()
-
-        for row in qualifying_rows:
-
-            if row - 1 >= 0:
-
-                neighbor_rows.add(
-                    row - 1
-                )
-
-            if row + 1 < ROWS:
-
-                neighbor_rows.add(
-                    row + 1
-                )
-
-        # ----------------------------------------------------
-        # CLEAR QUALIFYING ROWS
-        # ----------------------------------------------------
-
-        for row in qualifying_rows:
-
-            self.board[row] = [
-                0 for _ in range(COLS)
-            ]
-
-            self.board_colors[row] = [
-                None for _ in range(COLS)
-            ]
-
-        # ----------------------------------------------------
-        # 6 CELLS
-        #
-        # Small neighboring damage
-        # ----------------------------------------------------
-
-        if strongest == 6:
-
-            damage_ratio = 0.25
-
-        # ----------------------------------------------------
-        # 7 CELLS
-        #
-        # Medium neighboring damage
-        # ----------------------------------------------------
-
-        elif strongest == 7:
-
-            damage_ratio = 0.50
-
-        # ----------------------------------------------------
-        # 8 CELLS
-        #
-        # Major 3-row clear
-        # ----------------------------------------------------
-
+            self.show_combo(result["message"], earned)
         else:
-
-            damage_ratio = 0.75
-
-        # ----------------------------------------------------
-        # DAMAGE NEIGHBOR ROWS
-        # ----------------------------------------------------
-
-        for row in neighbor_rows:
-
-            occupied = []
-
-            for col in range(COLS):
-
-                if self.board[row][col] == 1:
-
-                    occupied.append(col)
-
-            random.shuffle(
-                occupied
-            )
-
-            if len(occupied) > 0:
-
-                damage = max(
-                    1,
-                    int(
-                        len(occupied)
-                        * damage_ratio
-                    )
-                )
-
-                for col in occupied[
-                    :damage
-                ]:
-
-                    self.board[
-                        row
-                    ][
-                        col
-                    ] = 0
-
-                    self.board_colors[
-                        row
-                    ][
-                        col
-                    ] = None
-
-        # ----------------------------------------------------
-        # COMBO BLAST
-        #
-        # If the player clears successfully
-        # multiple times in a row, damage
-        # additional surrounding rows.
-        # ----------------------------------------------------
-
-        if self.combo >= 2:
-
-            extra_rows = set()
-
-            for row in qualifying_rows:
-
-                for offset in [-2, 2]:
-
-                    target = row + offset
-
-                    if (
-                        target >= 0
-                        and target < ROWS
-                    ):
-
-                        extra_rows.add(
-                            target
-                        )
-
-            for row in extra_rows:
-
-                occupied = []
-
-                for col in range(COLS):
-
-                    if self.board[row][col] == 1:
-
-                        occupied.append(col)
-
-                random.shuffle(
-                    occupied
-                )
-
-                damage = max(
-                    1,
-                    len(occupied) // 2
-                )
-
-                for col in occupied[
-                    :damage
-                ]:
-
-                    self.board[
-                        row
-                    ][
-                        col
-                    ] = 0
-
-                    self.board_colors[
-                        row
-                    ][
-                        col
-                    ] = None
-
-        # ----------------------------------------------------
-        # SCORE
-        # ----------------------------------------------------
-
-        if strongest == 6:
-
-            base_score = 30
-
-        elif strongest == 7:
-
-            base_score = 50
-
-        else:
-
-            base_score = 100
-
-        # Multiple qualifying rows
-        row_bonus = (
-            len(qualifying_rows)
-            * 10
-        )
-
-        # Combo bonus
-        combo_bonus = (
-            self.combo
-            * 25
-        )
-
-        # Strong clear bonus
-        strong_bonus = (
-            strongest
-            * 5
-        )
-
-        # ----------------------------------------------------
-        # BIG BLAST BONUS
-        # ----------------------------------------------------
-
-        blast_bonus = 0
-
-        if (
-            strongest == 8
-            and self.combo >= 2
-        ):
-
-            blast_bonus = 100
-
-        self.score += (
-            base_score
-            + row_bonus
-            + combo_bonus
-            + strong_bonus
-            + blast_bonus
-        )
-
-        # ----------------------------------------------------
-        # Level
-        # ----------------------------------------------------
+            self.combo = 0
 
         self.update_level()
 
-    # ========================================================
-    # LEVEL
-    # ========================================================
+        # IMPORTANT: exactly one spawn, after the clear is completely
+        # finished. The next-block queue is therefore advanced once.
+        if not self.game_over:
+            self.spawn_block()
 
-    def update_level(self):
+        self.lock_in_progress = False
+        self.draw()
 
-        self.level = (
-            self.score // LEVEL_SCORE
-        ) + 1
 
-        # Faster every level
-        self.fall_speed = max(
-            MIN_FALL_SPEED,
-            START_FALL_SPEED
-            - (
-                (self.level - 1)
-                * SPEED_STEP
-            )
-        )
+    # --------------------------------------------------------
+    # FALL / HARD DROP
+    # --------------------------------------------------------
 
-        # High score
-        if self.score > self.high_score:
+    def fall(self):
+        self.fall_job = None
 
-            self.high_score = self.score
+        if self.game_over or self.paused or self.countdown_active or self.lock_in_progress:
+            self.schedule_fall()
+            return
 
-    # ========================================================
-    # HARD DROP
-    # ========================================================
-
-    def hard_drop(
-        self,
-        event=None
-    ):
-
-        if (
-            self.game_over
-            or self.paused
-            or self.countdown_active
+        if self.can_place(
+            self.current_block,
+            self.block_row + 1,
+            self.block_col
         ):
+            self.block_row += 1
+        else:
+            self.process_lock()
+
+        self.draw()
+
+        if not self.game_over:
+            self.schedule_fall()
+
+    def hard_drop(self, event=None):
+        if self.blocked_input() or self.lock_in_progress:
             return
 
         dropped = 0
@@ -1729,311 +822,548 @@ class BlockMaster:
             self.block_row + 1,
             self.block_col
         ):
-
             self.block_row += 1
-
             dropped += 1
 
-        # Drop score
         self.score += dropped
-
-        # Lock
-        self.lock_block()
-
-        # Clear
-        self.arcade_clear()
-
-        # New block
-        self.spawn_block()
-
-        self.draw()
-
-    # ========================================================
-    # AUTOMATIC FALL
-    # ========================================================
-
-    def fall(self):
-
-        if self.game_over:
-
-            self.draw()
-
-            return
-
-        if self.paused:
-
-            self.root.after(
-                self.fall_speed,
-                self.fall
-            )
-
-            return
-
-        if self.countdown_active:
-
-            return
-
-        # ----------------------------------------------------
-        # Try moving down
-        # ----------------------------------------------------
-
-        if self.can_place(
-            self.current_block,
-            self.block_row + 1,
-            self.block_col
-        ):
-
-            self.block_row += 1
-
-        else:
-
-            # Lock
-            self.lock_block()
-
-            # Clear
-            self.arcade_clear()
-
-            # Spawn
-            self.spawn_block()
-
+        self.process_lock()
         self.draw()
 
         if not self.game_over:
+            self.schedule_fall()
 
-            self.root.after(
-                self.fall_speed,
-                self.fall
+    # --------------------------------------------------------
+    # SCORE / LEVEL
+    # --------------------------------------------------------
+
+    def update_level(self):
+        self.level = (self.score // LEVEL_SCORE) + 1
+
+        if self.score > self.high_score:
+            self.high_score = self.score
+
+        if hasattr(self, "score_value"):
+            self.score_value.config(text=str(self.score))
+            self.high_value.config(text=str(self.high_score))
+            self.level_value.config(text=str(self.level))
+            self.combo_value.config(text=f"x{self.combo}")
+
+    # --------------------------------------------------------
+    # COMBO INDICATOR
+    # --------------------------------------------------------
+
+    def show_combo(self, message, points):
+        if not hasattr(self, "canvas"):
+            return
+
+        cx = BOARD_WIDTH / 2
+        y = BOARD_HEIGHT * 0.38
+
+        self.canvas.create_text(
+            cx,
+            y,
+            text=message,
+            font=(FONT, 18, "bold"),
+            fill=NEON_YELLOW,
+            tags="combo_fx",
+        )
+
+        self.canvas.create_text(
+            cx,
+            y + 30,
+            text=f"+{points}",
+            font=(FONT, 12, "bold"),
+            fill=NEON_GREEN,
+            tags="combo_fx",
+        )
+
+        self.root.after(
+            650,
+            lambda: self.canvas.delete("combo_fx")
+            if hasattr(self, "canvas") else None
+        )
+
+    # --------------------------------------------------------
+    # DRAW
+    # --------------------------------------------------------
+
+    def draw(self):
+        if not hasattr(self, "canvas"):
+            return
+
+        self.canvas.delete("all")
+
+        for r in range(ROWS):
+            for c in range(COLS):
+                x = c * CELL_SIZE
+                y = r * CELL_SIZE
+
+                self.canvas.create_rectangle(
+                    x,
+                    y,
+                    x + CELL_SIZE,
+                    y + CELL_SIZE,
+                    fill=BOARD_BG,
+                    outline=GRID,
+                )
+
+        # Locked blocks
+        for r in range(ROWS):
+            for c in range(COLS):
+                if self.board[r][c]:
+                    self.draw_3d_block(
+                        self.canvas,
+                        c * CELL_SIZE,
+                        r * CELL_SIZE,
+                        self.board_colors[r][c],
+                    )
+
+        # Current block
+        if (
+            self.current_block is not None
+            and not self.game_over
+            and not self.countdown_hidden
+        ):
+            for r, line in enumerate(self.current_block):
+                for c, value in enumerate(line):
+                    if value:
+                        self.draw_3d_block(
+                            self.canvas,
+                            (self.block_col + c) * CELL_SIZE,
+                            (self.block_row + r) * CELL_SIZE,
+                            self.current_color,
+                        )
+
+        self.draw_next_shape()
+
+        if self.paused and not self.game_over:
+            self.draw_center_overlay("PAUSED", NEON_YELLOW)
+
+        if self.game_over:
+            self.draw_game_over()
+
+        self.update_level()
+
+    def draw_3d_block(self, canvas, x, y, color, size=CELL_SIZE):
+        # Outer glow
+        canvas.create_rectangle(
+            x + 1, y + 1,
+            x + size - 1, y + size - 1,
+            outline=color,
+            width=2,
+        )
+
+        # Main face
+        canvas.create_rectangle(
+            x + 4, y + 4,
+            x + size - 4, y + size - 4,
+            fill=color,
+            outline="#0B0912",
+            width=2,
+        )
+
+        # Bright top
+        canvas.create_polygon(
+            x + 5, y + 5,
+            x + size - 5, y + 5,
+            x + size - 9, y + 9,
+            x + 9, y + 9,
+            fill="#FFFFFF",
+            outline="",
+        )
+
+        # Left bevel
+        canvas.create_polygon(
+            x + 5, y + 5,
+            x + 9, y + 9,
+            x + 9, y + size - 9,
+            x + 5, y + size - 5,
+            fill="#D8D5E6",
+            outline="",
+        )
+
+        # Bottom bevel
+        canvas.create_polygon(
+            x + 5, y + size - 5,
+            x + size - 5, y + size - 5,
+            x + size - 9, y + size - 9,
+            x + 9, y + size - 9,
+            fill="#5D5870",
+            outline="",
+        )
+
+        # Right bevel
+        canvas.create_polygon(
+            x + size - 5, y + 5,
+            x + size - 9, y + 9,
+            x + size - 9, y + size - 9,
+            x + size - 5, y + size - 5,
+            fill="#716B85",
+            outline="",
+        )
+
+    def draw_next_shape(self):
+        if not hasattr(self, "next_canvas"):
+            return
+
+        self.next_canvas.delete("all")
+
+        block = self.next_block
+        cell = 24
+
+        rows = len(block)
+        cols = len(block[0])
+
+        start_x = (190 - cols * cell) / 2
+        start_y = (115 - rows * cell) / 2
+
+        for r, line in enumerate(block):
+            for c, value in enumerate(line):
+                if value:
+                    self.draw_3d_block(
+                        self.next_canvas,
+                        start_x + c * cell,
+                        start_y + r * cell,
+                        self.next_color,
+                        cell,
+                    )
+
+    # --------------------------------------------------------
+    # OVERLAYS
+    # --------------------------------------------------------
+
+    def draw_center_overlay(self, title, color):
+        cx = BOARD_WIDTH / 2
+        cy = BOARD_HEIGHT / 2
+
+        self.canvas.create_rectangle(
+            cx - 145,
+            cy - 75,
+            cx + 145,
+            cy + 75,
+            fill=BG2,
+            outline=color,
+            width=5,
+        )
+
+        self.canvas.create_text(
+            cx,
+            cy,
+            text=title,
+            font=(FONT, 28, "bold"),
+            fill=color,
+        )
+
+    def draw_game_over(self):
+        # Keep the board clean and show a proper arcade-style popup.
+        self.canvas.create_rectangle(
+            0, 0, BOARD_WIDTH, BOARD_HEIGHT,
+            fill="#110E19", outline="", tags="gameover_dim"
+        )
+
+        if getattr(self, "game_over_window", None):
+            try:
+                if self.game_over_window.winfo_exists():
+                    return
+            except tk.TclError:
+                pass
+
+        self.game_over_window = tk.Toplevel(self.root)
+        self.game_over_window.title("BlockMaster - Game Over")
+        self.game_over_window.configure(bg=BG)
+        self.game_over_window.resizable(False, False)
+        self.game_over_window.transient(self.root)
+        self.game_over_window.grab_set()
+
+        width, height = 500, 470
+        self.root.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - width) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - height) // 2
+        self.game_over_window.geometry(f"{width}x{height}+{x}+{y}")
+
+        outer = self.frame3d(self.game_over_window, BG2, 24, 24)
+        outer.pack(fill="both", expand=True, padx=14, pady=14)
+
+        tk.Label(
+            outer, text="GAME OVER",
+            font=(FONT, 28, "bold"), bg=BG2, fg=NEON_PINK
+        ).pack(pady=(8, 3))
+
+        tk.Label(
+            outer, text=self.player_name,
+            font=(FONT, 13, "bold"), bg=BG2, fg=NEON_CYAN
+        ).pack(pady=(0, 18))
+
+        summary = self.frame3d(outer, PANEL, 15, 12)
+        summary.pack(fill="x", pady=6)
+
+        for label, value, color in [
+            ("FINAL SCORE", self.score, NEON_CYAN),
+            ("HIGH SCORE", self.high_score, NEON_YELLOW),
+            ("LEVEL", self.level, NEON_PURPLE),
+            ("LINES", self.lines, NEON_GREEN),
+        ]:
+            row = tk.Frame(summary, bg=PANEL)
+            row.pack(fill="x", pady=3)
+            tk.Label(row, text=label, font=(FONT, 10, "bold"),
+                     bg=PANEL, fg=MUTED, width=16, anchor="w").pack(side="left")
+            tk.Label(row, text=str(value), font=(FONT, 13, "bold"),
+                     bg=PANEL, fg=color, anchor="e").pack(side="right")
+
+        if self.score >= self.high_score and self.score > 0:
+            tk.Label(
+                outer, text="★ NEW HIGH SCORE! ★",
+                font=(FONT, 15, "bold"), bg=BG2, fg=NEON_YELLOW
+            ).pack(pady=8)
+
+        restart = self.button3d(
+            outer, "↻  RESTART GAME", self.reset_current_game, 24
+        )
+        restart.pack(fill="x", pady=(12, 5))
+
+        home = self.button3d(
+            outer, "⌂  HOME", self.go_home, 24
+        )
+        home.pack(fill="x", pady=5)
+
+        self.game_over_window.protocol(
+            "WM_DELETE_WINDOW", self.reset_current_game
+        )
+
+        self.celebrate_high_score()
+
+    def celebrate_high_score(self):
+        if self.score <= 0 or self.score < self.high_score:
+            return
+
+        if not hasattr(self, "canvas"):
+            return
+
+        # Lightweight neon celebration around the board.
+        colors = [NEON_CYAN, NEON_PINK, NEON_YELLOW, NEON_PURPLE, NEON_GREEN]
+
+        def pulse(i=0):
+            if not hasattr(self, "canvas"):
+                return
+            if i >= 8:
+                self.canvas.delete("highscore_fx")
+                return
+            self.canvas.delete("highscore_fx")
+            color = colors[i % len(colors)]
+            self.canvas.create_rectangle(
+                3, 3, BOARD_WIDTH - 3, BOARD_HEIGHT - 3,
+                outline=color, width=6, tags="highscore_fx"
             )
+            self.canvas.create_text(
+                BOARD_WIDTH / 2, 42,
+                text="★ NEW HIGH SCORE! ★",
+                font=(FONT, 16, "bold"),
+                fill=color, tags="highscore_fx"
+            )
+            self.canvas.update()
+            self.root.after(180, lambda: pulse(i + 1))
 
-    # ========================================================
-    # MENU
-    # ========================================================
+        pulse()
+
+    # --------------------------------------------------------
+    # MENU POPUP
+    # --------------------------------------------------------
+
+    def toggle_menu(self):
+        if getattr(self, "menu_overlay", None) is not None:
+            self.close_menu()
+        else:
+            self.open_menu()
 
     def open_menu(self):
+        if self.game_over:
+            return
 
-        menu = tk.Toplevel(
-            self.root
+        # Menu opens as an overlay INSIDE the game window.
+        self.paused = True
+        if self.fall_job:
+            try:
+                self.root.after_cancel(self.fall_job)
+            except tk.TclError:
+                pass
+            self.fall_job = None
+
+        if getattr(self, "menu_overlay", None) is not None:
+            return
+
+        self.menu_overlay = tk.Frame(
+            self.root,
+            bg=BG2,
+            relief="raised",
+            bd=7,
+            highlightthickness=3,
+            highlightbackground=NEON_CYAN,
         )
+        self.menu_overlay.place(relx=0.5, rely=0.5, anchor="center",
+                                relwidth=0.38, relheight=0.55)
 
-        menu.title(
-            "BlockMaster Menu"
-        )
+        inner = self.frame3d(self.menu_overlay, PANEL, 18, 18)
+        inner.pack(fill="both", expand=True, padx=8, pady=8)
 
-        menu.geometry(
-            "300x390"
-        )
+        tk.Label(
+            inner, text="GAME MENU", font=(FONT, 20, "bold"),
+            bg=PANEL, fg=NEON_CYAN
+        ).pack(pady=(10, 18))
 
-        menu.resizable(
-            False,
-            False
-        )
+        for text, command in [
+            ("▶  RESUME", self.resume_game),
+            ("↻  RESTART", self.reset_current_game),
+            ("⌂  HOME", self.go_home),
+            ("✕  QUIT", self.quit_game),
+        ]:
+            btn = self.button3d(inner, text, command, 18)
+            btn.pack(fill="x", pady=6, padx=12)
 
-        menu.configure(
-            bg=BACKGROUND
-        )
+    def close_menu(self):
+        overlay = getattr(self, "menu_overlay", None)
+        if overlay is not None:
+            try:
+                overlay.destroy()
+            except tk.TclError:
+                pass
+        self.menu_overlay = None
 
-        title = tk.Label(
-            menu,
-            text="MENU",
-            font=("Arial", 20, "bold"),
-            bg=BACKGROUND,
-            fg=TEXT
-        )
-
-        title.pack(
-            pady=20
-        )
-
-        # ----------------------------------------------------
-        # RESUME
-        # ----------------------------------------------------
-
-        resume = tk.Button(
-            menu,
-            text="RESUME",
-            width=18,
-            height=2,
-            bg=BUTTON_BG,
-            activebackground=BUTTON_ACTIVE,
-            fg=TEXT,
-            relief="flat",
-            command=lambda: self.resume_game(menu)
-        )
-
-        resume.pack(
-            pady=6
-        )
-
-        # ----------------------------------------------------
-        # PAUSE
-        # ----------------------------------------------------
-
-        pause = tk.Button(
-            menu,
-            text="PAUSE",
-            width=18,
-            height=2,
-            bg=PANEL,
-            activebackground=BUTTON_ACTIVE,
-            fg=TEXT,
-            relief="flat",
-            command=lambda: self.pause_game(menu)
-        )
-
-        pause.pack(
-            pady=6
-        )
-
-        # ----------------------------------------------------
-        # RESET
-        # ----------------------------------------------------
-
-        reset = tk.Button(
-            menu,
-            text="RESET",
-            width=18,
-            height=2,
-            bg=PANEL,
-            activebackground=BUTTON_ACTIVE,
-            fg=TEXT,
-            relief="flat",
-            command=lambda: self.reset_game(menu)
-        )
-
-        reset.pack(
-            pady=6
-        )
-
-        # ----------------------------------------------------
-        # HOME
-        # ----------------------------------------------------
-
-        home = tk.Button(
-            menu,
-            text="HOME",
-            width=18,
-            height=2,
-            bg=PANEL,
-            activebackground=BUTTON_ACTIVE,
-            fg=TEXT,
-            relief="flat",
-            command=lambda: self.go_home(menu)
-        )
-
-        home.pack(
-            pady=6
-        )
-
-        # ----------------------------------------------------
-        # QUIT
-        # ----------------------------------------------------
-
-        quit_button = tk.Button(
-            menu,
-            text="QUIT",
-            width=18,
-            height=2,
-            bg=PANEL,
-            activebackground=BUTTON_ACTIVE,
-            fg=TEXT,
-            relief="flat",
-            command=self.root.destroy
-        )
-
-        quit_button.pack(
-            pady=6
-        )
-
-    # ========================================================
-    # PAUSE
-    # ========================================================
-
-    def pause_game(
-        self,
-        menu=None
-    ):
-
+    def pause_game(self):
+        # Kept for compatibility with any existing callback, but the
+        # visible menu no longer exposes a Pause button.
         if not self.game_over:
-
             self.paused = True
-
+            self.close_menu()
             self.draw()
 
-        if menu:
-
-            menu.destroy()
-
-    # ========================================================
-    # RESUME
-    # ========================================================
-
-    def resume_game(
-        self,
-        menu=None
-    ):
-
+    def resume_game(self):
         if not self.game_over:
-
             self.paused = False
-
+            self.close_menu()
             self.draw()
+            self.schedule_fall()
 
-        if menu:
 
-            menu.destroy()
+    # --------------------------------------------------------
+    # HOME / QUIT
+    # --------------------------------------------------------
 
-    # ========================================================
-    # RESET
-    # ========================================================
+    def go_home(self):
+        if self.score > 0 and not self.score_saved:
+            self.save_finished_game()
 
-    def reset_game(
-        self,
-        menu=None
-    ):
-
-        if menu:
-
-            menu.destroy()
-
-        self.start_game()
-
-    # ========================================================
-    # HOME
-    # ========================================================
-
-    def go_home(
-        self,
-        menu=None
-    ):
-
-        if menu:
-
-            menu.destroy()
-
+        self.close_menu()
         self.create_home_screen()
 
-    # ========================================================
-    # RESTART KEY
-    # ========================================================
+    def quit_game(self):
+        self.save_finished_game()
+        self.cancel_jobs()
+        self.close_menu()
+        self.root.destroy()
 
-    def restart_key(
-        self,
-        event=None
-    ):
+    # --------------------------------------------------------
+    # LEADERBOARD
+    # --------------------------------------------------------
 
-        if self.game_over:
+    def save_finished_game(self):
+        if self.score_saved:
+            return
 
-            self.start_game()
+        self.score_saved = True
+
+        if self.score <= 0:
+            return
+
+        self.session_scores.append({
+            "name": self.player_name or "PLAYER",
+            "score": self.score,
+        })
+
+        self.session_scores.sort(
+            key=lambda item: item["score"],
+            reverse=True,
+        )
+
+    def refresh_leaderboard(self):
+        if not hasattr(self, "leaderboard_frame"):
+            return
+
+        for widget in self.leaderboard_frame.winfo_children():
+            widget.destroy()
+
+        if not self.session_scores:
+            tk.Label(
+                self.leaderboard_frame,
+                text="NO SCORES YET\n\nSTART A GAME!",
+                font=(FONT, 11, "bold"),
+                bg=PANEL,
+                fg=MUTED,
+                justify="center",
+            ).pack(pady=65)
+            return
+
+        for rank, result in enumerate(self.session_scores[:10], 1):
+            bg = PANEL2 if rank % 2 == 0 else PANEL
+
+            row = tk.Frame(
+                self.leaderboard_frame,
+                bg=bg,
+                relief="raised",
+                bd=2,
+            )
+            row.pack(fill="x", pady=2)
+
+            tk.Label(
+                row,
+                text=str(rank),
+                width=7,
+                font=(FONT, 9, "bold"),
+                bg=bg,
+                fg=MUTED,
+            ).pack(side="left")
+
+            tk.Label(
+                row,
+                text=result["name"][:16],
+                width=18,
+                font=(FONT, 9, "bold"),
+                bg=bg,
+                fg=WHITE,
+            ).pack(side="left")
+
+            tk.Label(
+                row,
+                text=str(result["score"]),
+                width=10,
+                font=(FONT, 9, "bold"),
+                bg=bg,
+                fg=NEON_CYAN,
+            ).pack(side="left")
+
+        if hasattr(self, "home_high_label"):
+            self.home_high_label.config(text=str(self.high_score))
+
+    # --------------------------------------------------------
+    # CLEANUP
+    # --------------------------------------------------------
+
+    def cancel_jobs(self):
+        if self.fall_job:
+            try:
+                self.root.after_cancel(self.fall_job)
+            except tk.TclError:
+                pass
+            self.fall_job = None
+
+        if self.speed_job:
+            try:
+                self.root.after_cancel(self.speed_job)
+            except tk.TclError:
+                pass
+            self.speed_job = None
 
 
-# ============================================================
-# START PROGRAM
-# ============================================================
-
-root = tk.Tk()
-
-game = BlockMaster(
-    root
-)
-
-root.mainloop()
+if __name__ == "__main__":
+    root = tk.Tk()
+    game = BlockMaster(root)
+    root.mainloop()
